@@ -37,24 +37,24 @@ export default function Register() {
     const { password, confirmPassword, username, email } = values;
     if (password !== confirmPassword) {
       toast.error(
-        "Password and confirm password should be same.",
+        "Mật khẩu và Xác minh mật khẩu phải giống nhau.",
         toastOptions
       );
       return false;
     } else if (username.length < 3) {
       toast.error(
-        "Username should be greater than 3 characters.",
+        "Tên đăng nhập nên có tối thiểu 3 kí tự.",
         toastOptions
       );
       return false;
     } else if (password.length < 8) {
       toast.error(
-        "Password should be equal or greater than 8 characters.",
+        "Mật khẩu nên có tối thiểu 8 kí tự.",
         toastOptions
       );
       return false;
     } else if (email === "") {
-      toast.error("Email is required.", toastOptions);
+      toast.error("Vui lòng nhập địa chỉ email.", toastOptions);
       return false;
     }
 
@@ -94,7 +94,7 @@ export default function Register() {
           </div>
           <input
             type="text"
-            placeholder="Username"
+            placeholder="Tên đăng nhập"
             name="username"
             onChange={(e) => handleChange(e)}
           />
@@ -106,19 +106,19 @@ export default function Register() {
           />
           <input
             type="password"
-            placeholder="Password"
+            placeholder="Mật khẩu"
             name="password"
             onChange={(e) => handleChange(e)}
           />
           <input
             type="password"
-            placeholder="Confirm Password"
+            placeholder="Xác minh mật khẩu"
             name="confirmPassword"
             onChange={(e) => handleChange(e)}
           />
-          <button type="submit">Create User</button>
+          <button type="submit">Đăng ký</button>
           <span>
-            Already have an account ? <Link to="/login">Login.</Link>
+            Bạn đã có tài khoản? <Link to="/login">Đăng nhập.</Link>
           </span>
         </form>
       </FormContainer>
@@ -126,6 +126,12 @@ export default function Register() {
     </>
   );
 }
+
+const COOL_ACCENT = '#A7C5F8';
+const STATE_ACCENT = '#C2D4F6';
+const PRIMARY_TEXT_COLOR = '#204683';
+const BACKGROUND_COLOR = '#292A2D';
+const FORM_COLOR = '#00000076';
 
 const FormContainer = styled.div`
   height: 100vh;
@@ -135,7 +141,7 @@ const FormContainer = styled.div`
   justify-content: center;
   gap: 1rem;
   align-items: center;
-  background-color: #131324;
+  background-color: ${BACKGROUND_COLOR};
   .brand {
     display: flex;
     align-items: center;
@@ -154,26 +160,26 @@ const FormContainer = styled.div`
     display: flex;
     flex-direction: column;
     gap: 2rem;
-    background-color: #00000076;
+    background-color: ${FORM_COLOR};
     border-radius: 2rem;
     padding: 3rem 5rem;
   }
   input {
     background-color: transparent;
     padding: 1rem;
-    border: 0.1rem solid #4e0eff;
+    border: 0.1rem solid white;
     border-radius: 0.4rem;
     color: white;
     width: 100%;
     font-size: 1rem;
     &:focus {
-      border: 0.1rem solid #997af0;
+      border: 0.1rem solid ${COOL_ACCENT};
       outline: none;
     }
   }
   button {
-    background-color: #4e0eff;
-    color: white;
+    background-color: ${COOL_ACCENT};
+    color: ${PRIMARY_TEXT_COLOR};
     padding: 1rem 2rem;
     border: none;
     font-weight: bold;
@@ -182,16 +188,22 @@ const FormContainer = styled.div`
     font-size: 1rem;
     text-transform: uppercase;
     &:hover {
-      background-color: #4e0eff;
+      background-color: ${STATE_ACCENT};
     }
   }
   span {
     color: white;
     text-transform: uppercase;
     a {
-      color: #4e0eff;
+      color: ${COOL_ACCENT};
       text-decoration: none;
       font-weight: bold;
+      transition: all 0.2s ease-in-out;
+
+      &:hover {
+        color: ${STATE_ACCENT};
+        text-decoration: underline;
+      }
     }
   }
 `;

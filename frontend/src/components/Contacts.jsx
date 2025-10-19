@@ -47,7 +47,7 @@ export default function Contacts({ contacts, changeChat }) {
       */}
       {!currentUserImage || !currentUserName ? (
         <LoadingContainer>
-          <h3>Loading User Data...</h3>
+          <h3>Đang tải dữ liệu người dùng...</h3>
         </LoadingContainer>
       ) : (
         <Container>
@@ -95,6 +95,11 @@ export default function Contacts({ contacts, changeChat }) {
   );
 }
 
+const COOL_ACCENT = '#A7C5F8';
+const STATE_ACCENT = '#C2D4F6';
+const PRIMARY_TEXT_COLOR = '#204683';
+const BACKGROUND_COLOR = '#292A2D';
+const FORM_COLOR = '#00000076';
 
 const Container = styled.div`
   display: grid;

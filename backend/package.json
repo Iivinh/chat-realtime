@@ -4,7 +4,8 @@
   "private": true,
   "main": "app.js",
   "scripts": {
-    "start": "node app.js"
+    "start": "node app.js",
+    "dev": "nodemon --exec node app.js"
   },
   "dependencies": {
     "bcrypt": "^6.0.0",
@@ -18,5 +19,8 @@
     "mongoose": "^8.19.1",
     "morgan": "~1.9.1",
     "socket.io": "^4.8.1"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.10"
   }
 }

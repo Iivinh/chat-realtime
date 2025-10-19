@@ -30,13 +30,15 @@ export default function Welcome() {
   return (
     <Container>
       <img src={Robot} alt="" />
-      <h1>
-        Welcome, <span>{userName || "Guest"}!</span> {/* Sử dụng || "Guest" để tránh hiển thị trống khi đang tải */}
-      </h1>
-      <h3>Please select a chat to Start messaging.</h3>
+      <h2>
+        Xin chào, <span>{userName || "Guest"}!</span> {/* Sử dụng || "Guest" để tránh hiển thị trống khi đang tải */}
+      </h2>
+      <h4>Vui lòng chọn một cuộc trò chuyện để bắt đầu gửi tin nhắn.</h4>
     </Container>
   );
 }
+
+const PRIMARY_TEXT_COLOR = '#A7C5F8';
 
 const Container = styled.div`
   display: flex;
@@ -48,6 +50,6 @@ const Container = styled.div`
     height: 20rem;
   }
   span {
-    color: #4e0eff;
+    color: ${PRIMARY_TEXT_COLOR};
   }
 `;

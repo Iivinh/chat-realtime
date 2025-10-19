@@ -14,17 +14,25 @@ export default function Chat() {
   const [contacts, setContacts] = useState([]);
   const [currentChat, setCurrentChat] = useState(undefined);
   const [currentUser, setCurrentUser] = useState(undefined);
-  useEffect(async () => {
-    if (!localStorage.getItem(import.meta.env.VITE_LOCALHOST_KEY)) {
-      navigate("/login");
-    } else {
-      setCurrentUser(
-        await JSON.parse(
-          localStorage.getItem(import.meta.env.VITE_LOCALHOST_KEY)
-        )
-      );
-    }
-  }, []);
+
+  // 1. KHẮC PHỤC LỖI ASYNC: Kiểm tra Đăng nhập/Lấy User
+  useEffect(() => {
+    const checkUser = async () => {
+      if (!localStorage.getItem(import.meta.env.VITE_LOCALHOST_KEY)) {
+        navigate("/login");
+      } else {
+        const storedData = localStorage.getItem(import.meta.env.VITE_LOCALHOST_KEY);
+        if (storedData) {
+            setCurrentUser(await JSON.parse(storedData));
+        } else {
+            navigate("/login");
+        }
+      }
+    };
+    checkUser();
+  }, [navigate]); // Thêm navigate vào dependency để linter không cảnh báo
+
+  // 2. KHỞI TẠO SOCKET (Logic này đã đúng)
   useEffect(() => {
     if (currentUser) {
       socket.current = io(host);
@@ -32,19 +40,26 @@ export default function Chat() {
     }
   }, [currentUser]);
 
-  useEffect(async () => {
-    if (currentUser) {
+  // 3. KHẮC PHỤC LỖI ASYNC: Lấy Danh bạ
+  useEffect(() => {
+    const fetchContacts = async () => {
       if (currentUser.isAvatarImageSet) {
         const data = await axios.get(`${allUsersRoute}/${currentUser._id}`);
         setContacts(data.data);
       } else {
         navigate("/setAvatar");
       }
+    };
+
+    if (currentUser) { // Chỉ gọi khi currentUser đã được thiết lập
+      fetchContacts();
     }
-  }, [currentUser]);
+  }, [currentUser, navigate]); // Thêm navigate vào dependency
+
   const handleChatChange = (chat) => {
     setCurrentChat(chat);
   };
+
   return (
     <>
       <Container>
@@ -61,19 +76,24 @@ export default function Chat() {
   );
 }
 
+const COOL_ACCENT = '#A7C5F8';
+const STATE_ACCENT = '#C2D4F6';
+const PRIMARY_TEXT_COLOR = '#204683';
+const BACKGROUND_COLOR = '#292A2D';
+const FORM_COLOR = '#00000076';
+
 const Container = styled.div`
   height: 100vh;
   width: 100vw;
   display: flex;
   flex-direction: column;
   justify-content: center;
-  gap: 1rem;
   align-items: center;
-  background-color: #131324;
+  background-color: ${BACKGROUND_COLOR};
   .container {
     height: 85vh;
     width: 85vw;
-    background-color: #00000076;
+    background-color: ${FORM_COLOR};
     display: grid;
     grid-template-columns: 25% 75%;
     @media screen and (min-width: 720px) and (max-width: 1080px) {

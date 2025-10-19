@@ -6,6 +6,7 @@ import Logo from "../assets/logo.svg";
 import { ToastContainer, toast } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 import { loginRoute } from "../utils/APIRoutes";
+import 'bootstrap/dist/css/bootstrap.min.css';
 
 export default function Login() {
   const navigate = useNavigate();
@@ -30,10 +31,10 @@ export default function Login() {
   const validateForm = () => {
     const { username, password } = values;
     if (username === "") {
-      toast.error("Email and Password is required.", toastOptions);
+      toast.error("Vui lòng nhập Tên đăng nhập và Mật khẩu.", toastOptions);
       return false;
     } else if (password === "") {
-      toast.error("Email and Password is required.", toastOptions);
+      toast.error("Vui lòng nhập Tên đăng nhập và Mật khẩu.", toastOptions);
       return false;
     }
     return true;
@@ -78,13 +79,13 @@ export default function Login() {
           />
           <input
             type="password"
-            placeholder="Password"
+            placeholder="Mật khẩu"
             name="password"
             onChange={(e) => handleChange(e)}
           />
-          <button type="submit">Log In</button>
+          <button type="submit">Đăng nhập</button>
           <span>
-            Don't have an account ? <Link to="/register">Create One.</Link>
+            Bạn chưa có tài khoản? <Link to="/register">Tạo mới.</Link>
           </span>
         </form>
       </FormContainer>
@@ -92,6 +93,12 @@ export default function Login() {
     </>
   );
 }
+
+const COOL_ACCENT = '#A7C5F8';
+const STATE_ACCENT = '#C2D4F6';
+const PRIMARY_TEXT_COLOR = '#204683';
+const BACKGROUND_COLOR = '#292A2D';
+const FORM_COLOR = '#00000076';
 
 const FormContainer = styled.div`
   height: 100vh;
@@ -101,7 +108,7 @@ const FormContainer = styled.div`
   justify-content: center;
   gap: 1rem;
   align-items: center;
-  background-color: #131324;
+  background-color: ${BACKGROUND_COLOR};
   .brand {
     display: flex;
     align-items: center;
@@ -120,26 +127,29 @@ const FormContainer = styled.div`
     display: flex;
     flex-direction: column;
     gap: 2rem;
-    background-color: #00000076;
+    background-color: ${FORM_COLOR};
     border-radius: 2rem;
     padding: 5rem;
   }
+
   input {
     background-color: transparent;
     padding: 1rem;
-    border: 0.1rem solid #4e0eff;
+    border: 0.1rem solid #8E918F;
     border-radius: 0.4rem;
     color: white;
     width: 100%;
     font-size: 1rem;
     &:focus {
-      border: 0.1rem solid #997af0;
+      color: white;
+      border: 0.1rem solid ${COOL_ACCENT};
       outline: none;
     }
   }
+
   button {
-    background-color: #4e0eff;
-    color: white;
+    background-color: ${COOL_ACCENT};
+    color: ${PRIMARY_TEXT_COLOR};
     padding: 1rem 2rem;
     border: none;
     font-weight: bold;
@@ -148,16 +158,22 @@ const FormContainer = styled.div`
     font-size: 1rem;
     text-transform: uppercase;
     &:hover {
-      background-color: #4e0eff;
+      background-color: ${STATE_ACCENT};
     }
   }
   span {
     color: white;
     text-transform: uppercase;
     a {
-      color: #4e0eff;
+      color: ${COOL_ACCENT};
       text-decoration: none;
       font-weight: bold;
+      transition: all 0.2s ease-in-out;
+
+      &:hover {
+        color: ${STATE_ACCENT};
+        text-decoration: underline;
+      }
     }
   }
 `;
