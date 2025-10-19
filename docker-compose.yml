@@ -1,13 +1,28 @@
+version: '3.8'
 services:
-  api:
-    image: node:20-alpine
-    container_name: node-api-dev
-    working_dir: /app
+  mongodb:
+    image: mongo:latest        # Sử dụng image Mongo chính thức
+    container_name: mongodb_db
+    ports:                     # Chỉ mở port ra ngoài để tiện kiểm tra (tùy chọn)
+      - "27017:27017"
+    volumes:                   # Lưu trữ dữ liệu ra ngoài container để không bị mất
+      - mongo-data:/data/db
+    restart: always
+  front:
+    build: ./frontend
+    container_name: chat_frontend
     ports:
       - "3000:3000"
-    volumes:
-      - .:/app              # mount mã nguồn
-      - /app/node_modules  # tránh node_modules bị đè bởi bind mount
-    command: sh -c "npm ci && npm run dev"
+    depends_on:
+      - api
+    restart: always
+  api:
+    build: ./backend
+    container_name: chat_api
+    ports:
+      - "5000:5000"
     environment:
-      - PORT=3000
+      - MONGO_URL=mongodb://mongodb:27017/chat-realtime
+      - PORT=5000
+volumes:
+  mongo-data:
