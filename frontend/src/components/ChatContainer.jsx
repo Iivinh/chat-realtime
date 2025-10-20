@@ -141,11 +141,19 @@ export default function ChatContainer({ currentChat, socket }) {
   );
 }
 
+
+const COOL_ACCENT = '#A7C5F8';
+const STATE_ACCENT = '#C2D4F6';
+const PRIMARY_TEXT_COLOR = '#204683';
+const BACKGROUND_COLOR = '#292A2D';
+const FORM_COLOR = '#00000076';
+
 const Container = styled.div`
+  background: #1d1f20ff;
   display: grid;
   grid-template-rows: 10% 80% 10%;
   gap: 0.1rem;
-  overflow: hidden;
+  overflow: visible;
   @media screen and (min-width: 720px) and (max-width: 1080px) {
     grid-template-rows: 15% 70% 15%;
   }
@@ -179,7 +187,7 @@ const Container = styled.div`
     &::-webkit-scrollbar {
       width: 0.2rem;
       &-thumb {
-        background-color: #ffffff39;
+        background-color: ${STATE_ACCENT};
         width: 0.1rem;
         border-radius: 1rem;
       }
@@ -202,13 +210,15 @@ const Container = styled.div`
     .sended {
       justify-content: flex-end;
       .content {
-        background-color: #4f04ff21;
+        background-color: ${PRIMARY_TEXT_COLOR};
+        color: white;
       }
     }
     .recieved {
       justify-content: flex-start;
       .content {
-        background-color: #9900ff20;
+        background-color: #4C4C4C;
+        color: white;
       }
     }
   }

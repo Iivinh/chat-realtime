@@ -23,17 +23,20 @@ export default function Logout() {
   );
 }
 
+const COOL_ACCENT = '#A7C5F8';
+const PRIMARY_TEXT_COLOR = '#204683';
+
 const Button = styled.button`
   display: flex;
   justify-content: center;
   align-items: center;
   padding: 0.5rem;
   border-radius: 0.5rem;
-  background-color: #9a86f3;
+  background-color: ${COOL_ACCENT};
   border: none;
   cursor: pointer;
   svg {
     font-size: 1.3rem;
-    color: #ebe7ff;
+    color: ${PRIMARY_TEXT_COLOR};
   }
 `;

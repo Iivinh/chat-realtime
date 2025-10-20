@@ -86,14 +86,16 @@ const Container = styled.div`
   height: 100vh;
   width: 100vw;
   display: flex;
-  flex-direction: column;
-  justify-content: center;
-  align-items: center;
+  flex-direction: flex-start;
+  justify-content: flex-start;
+  align-items: stretch;
+  padding: 0;
+  margin: 0;
   background-color: ${BACKGROUND_COLOR};
   .container {
-    height: 85vh;
-    width: 85vw;
-    background-color: ${FORM_COLOR};
+    height: 100%;
+    width: 100%;
+    background-color: ${BACKGROUND_COLOR};
     display: grid;
     grid-template-columns: 25% 75%;
     @media screen and (min-width: 720px) and (max-width: 1080px) {

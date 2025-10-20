@@ -52,7 +52,7 @@ export default function Contacts({ contacts, changeChat }) {
       ) : (
         <Container>
           <div className="brand">
-            <img src={Logo} alt="logo" />
+            {/* <img src={Logo} alt="logo" /> */}
             <h3>snappy</h3>
           </div>
           <div className="contacts">
@@ -60,9 +60,8 @@ export default function Contacts({ contacts, changeChat }) {
               return (
                 <div
                   key={contact._id}
-                  className={`contact ${
-                    index === currentSelected ? "selected" : ""
-                  }`}
+                  className={`contact ${index === currentSelected ? "selected" : ""
+                    }`}
                   onClick={() => changeCurrentChat(index, contact)}
                 >
                   <div className="avatar">
@@ -105,7 +104,7 @@ const Container = styled.div`
   display: grid;
   grid-template-rows: 10% 75% 15%;
   overflow: hidden;
-  background-color: #080420;
+  background-color: ${FORM_COLOR};
   .brand {
     display: flex;
     align-items: center;
@@ -156,12 +155,15 @@ const Container = styled.div`
       }
     }
     .selected {
-      background-color: #9a86f3;
+      background-color: ${COOL_ACCENT};
+      .username h3 {
+            color: ${PRIMARY_TEXT_COLOR}; /* #204683 (Dùng màu chữ tối trên nền sáng) */
+        }
     }
   }
 
   .current-user {
-    background-color: #0d0d30;
+    background-color: #101018;
     display: flex;
     justify-content: center;
     align-items: center;
