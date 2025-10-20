@@ -1,245 +1,390 @@
-import React, { useEffect, useMemo, useRef, useState } from "react";
-import { BsEmojiSmileFill } from "react-icons/bs";
-import { IoMdSend } from "react-icons/io";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import styled, { keyframes } from "styled-components";
-import Picker from "emoji-picker-react"; // v4+ onEmojiClick signature: (emojiData, event)
+import ChatInput from "./ChatInput";
+import Logout from "./Logout";
+import { v4 as uuidv4 } from "uuid";
+import axios from "axios";
+import { sendMessageRoute, recieveMessageRoute } from "../utils/APIRoutes";
 
 /**
- * ChatInput — fixed & redesigned
- *
- * Improvements:
- * - Fixes emoji-picker onClick signature (v4+)
- * - Enter to send; Shift+Enter for newline
- * - Prevents empty/whitespace-only sends
- * - Click-outside to close emoji panel
- * - Accessible labels, aria, titles
- * - Mobile-friendly layout & larger touch targets
- * - Cleaner, modern visual style (glass + subtle glow)
- * - Optional props: placeholder, disabled, onTyping
+ * ChatContainer — redesigned UI/UX + safer logic
+ * - Defensive guards when currentChat is null
+ * - Loading + error states
+ * - Optimistic send; disable when offline/disabled
+ * - Auto scroll to bottom on new messages
+ * - Typing indicator (wired to ChatInput's onTyping)
+ * - Group messages by date; compact bubbles when same author
+ * - Responsive, accessible, glassy theme
  */
-export default function ChatInput({
-  handleSendMsg,
-  placeholder = "Nhập tin nhắn...",
-  disabled = false,
-  onTyping,
-}) {
-  const [msg, setMsg] = useState("");
-  const [showEmojiPicker, setShowEmojiPicker] = useState(false);
-  const containerRef = useRef(null);
-  const inputRef = useRef(null);
+export default function ChatContainer({ currentChat, socket }) {
+  const [messages, setMessages] = useState([]);
+  const [arrivalMessage, setArrivalMessage] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const [isTyping, setIsTyping] = useState(false);
 
-  const trimmed = useMemo(() => msg.trim(), [msg]);
-  const canSend = trimmed.length > 0 && !disabled;
+  const endRef = useRef(null);
+  const listRef = useRef(null);
 
-  // Close picker when clicking outside
+  // Helpers
+  const userId = useMemo(() => {
+    try {
+      const raw = localStorage.getItem(import.meta.env.VITE_LOCALHOST_KEY);
+      return raw ? JSON.parse(raw)._id : null;
+    } catch {
+      return null;
+    }
+  }, []);
+
+  const avatarSrc = useMemo(() => {
+    if (!currentChat?.avatarImage) return "";
+    return `data:image/svg+xml;base64,${currentChat.avatarImage}`;
+  }, [currentChat]);
+
+  // Fetch messages whenever currentChat changes
   useEffect(() => {
-    function onDocClick(e) {
-      if (!showEmojiPicker) return;
-      if (containerRef.current && !containerRef.current.contains(e.target)) {
-        setShowEmojiPicker(false);
+    let alive = true;
+    async function fetchMessages() {
+      if (!currentChat || !userId) return;
+      setLoading(true);
+      setError("");
+      try {
+        const response = await axios.post(recieveMessageRoute, {
+          from: userId,
+          to: currentChat._id,
+        });
+        if (!alive) return;
+        setMessages(Array.isArray(response.data) ? response.data : []);
+      } catch (e) {
+        if (!alive) return;
+        setError("Không tải được lịch sử trò chuyện. Vui lòng thử lại.");
+        setMessages([]);
+      } finally {
+        if (alive) setLoading(false);
       }
     }
-    document.addEventListener("mousedown", onDocClick);
-    return () => document.removeEventListener("mousedown", onDocClick);
-  }, [showEmojiPicker]);
+    fetchMessages();
+    return () => {
+      alive = false;
+    };
+  }, [currentChat, userId]);
 
-  // Notify parent that user is typing (optional)
+  // Send a message
+  const handleSendMsg = useCallback(
+    async (msg) => {
+      if (!currentChat || !userId) return;
+
+      // optimistic local append
+      const tempId = uuidv4();
+      const optimistic = { _id: tempId, fromSelf: true, message: msg, ts: Date.now() };
+      setMessages((prev) => [...prev, optimistic]);
+
+      try {
+        // socket emit
+        socket?.current?.emit?.("send-msg", { to: currentChat._id, from: userId, msg });
+        // persist
+        await axios.post(sendMessageRoute, { from: userId, to: currentChat._id, message: msg });
+      } catch (e) {
+        // revert optimistic on failure (optional: keep but mark failed)
+        setMessages((prev) => prev.filter((m) => m._id !== tempId));
+        setError("Gửi tin nhắn thất bại. Kiểm tra kết nối của bạn.");
+      }
+    },
+    [currentChat, userId, socket]
+  );
+
+  // Handle incoming messages (Socket.IO)
   useEffect(() => {
-    if (!onTyping) return;
-    const id = setTimeout(() => onTyping(Boolean(msg)), 150);
-    return () => clearTimeout(id);
-  }, [msg, onTyping]);
+    const currentSocket = socket?.current;
+    if (!currentSocket) return;
 
-  const handleEmojiToggle = () => setShowEmojiPicker((v) => !v);
+    const handleReceive = (msg) => {
+      setArrivalMessage({ fromSelf: false, message: msg, ts: Date.now() });
+    };
 
-  const handleEmojiClick = (emojiData /*, event */) => {
-    setMsg((prev) => `${prev}${emojiData.emoji}`);
-    inputRef.current?.focus();
-  };
+    currentSocket.on("msg-recieve", handleReceive);
+    return () => {
+      currentSocket.off("msg-recieve", handleReceive);
+    };
+  }, [socket]);
 
-  const sendChat = (e) => {
-    e?.preventDefault?.();
-    if (!canSend) return;
-    handleSendMsg(trimmed);
-    setMsg("");
-    setShowEmojiPicker(false);
-    inputRef.current?.focus();
-  };
+  // Append arrival message
+  useEffect(() => {
+    if (!arrivalMessage) return;
+    setMessages((prev) => [...prev, arrivalMessage]);
+  }, [arrivalMessage]);
 
-  const onKeyDown = (e) => {
-    if (e.key === "Enter" && !e.shiftKey) {
-      e.preventDefault();
-      sendChat();
-    }
-  };
+  // Auto scroll to bottom on messages change
+  useEffect(() => {
+    endRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages]);
+
+  // Group messages by display date
+  const groups = useMemo(() => groupByDate(messages), [messages]);
+
+  // Header title
+  const title = currentChat?.username || "Chưa chọn hội thoại";
 
   return (
-    <Container ref={containerRef} aria-label="Chat input">
-      <Toolbar>
-        <IconButton
-          type="button"
-          onClick={handleEmojiToggle}
-          title={showEmojiPicker ? "Đóng emoji" : "Chèn emoji"}
-          aria-label="Chèn emoji"
-          disabled={disabled}
-        >
-          <BsEmojiSmileFill />
-        </IconButton>
-        {showEmojiPicker && (
-          <EmojiPanel>
-            <Picker onEmojiClick={handleEmojiClick} autoFocusSearch={false} />
-          </EmojiPanel>
-        )}
-      </Toolbar>
+    <Shell>
+      <Header>
+        <UserBlock>
+          <Avatar>{avatarSrc ? <img src={avatarSrc} alt="avatar" /> : <Fallback />}</Avatar>
+          <div>
+            <h3 title={title}>{title}</h3>
+            <SubtleRow>
+              <OnlineDot aria-hidden />
+              <span>Trực tuyến</span>
+            </SubtleRow>
+          </div>
+        </UserBlock>
+        <Logout />
+      </Header>
 
-      <Form onSubmit={sendChat} role="form" aria-label="Gửi tin nhắn">
-        <TextArea
-          ref={inputRef}
-          rows={1}
-          value={msg}
-          onChange={(e) => setMsg(e.target.value)}
-          onKeyDown={onKeyDown}
-          placeholder={placeholder}
-          disabled={disabled}
-          aria-disabled={disabled}
-          aria-label="Soạn tin nhắn"
-        />
-        <SendButton
-          type="submit"
-          aria-label="Gửi"
-          title={canSend ? "Gửi (Enter)" : disabled ? "Đang tắt" : "Nhập tin nhắn để gửi"}
-          disabled={!canSend}
-        >
-          <IoMdSend />
-        </SendButton>
-      </Form>
-    </Container>
+      <MessagesArea ref={listRef} role="log" aria-live="polite" aria-busy={loading}>
+        {loading && (
+          <LoadingRow>
+            <BubbleSkeleton />
+            <BubbleSkeleton right />
+            <BubbleSkeleton />
+          </LoadingRow>
+        )}
+
+        {!loading && !currentChat && (
+          <EmptyState>
+            <h4>Chọn một cuộc trò chuyện để bắt đầu</h4>
+            <p>Tin nhắn của bạn sẽ hiển thị ở đây.</p>
+          </EmptyState>
+        )}
+
+        {!loading && currentChat && groups.length === 0 && !error && (
+          <EmptyState>
+            <h4>Hãy là người gửi tin nhắn đầu tiên 👋</h4>
+            <p>Chưa có lịch sử trò chuyện.</p>
+          </EmptyState>
+        )}
+
+        {error && (
+          <ErrorRow role="alert">{error}</ErrorRow>
+        )}
+
+        {groups.map(({ dateLabel, items }) => (
+          <section key={dateLabel}>
+            <DateDivider>
+              <span>{dateLabel}</span>
+            </DateDivider>
+            {items.map((m, i) => {
+              const isSelf = Boolean(m.fromSelf);
+              const prev = items[i - 1];
+              const compact = !!prev && prev.fromSelf === m.fromSelf;
+              return (
+                <Row key={m._id || `${m.message}-${i}`}
+                     className={isSelf ? "right" : "left"}
+                     aria-label={isSelf ? "Tin nhắn của bạn" : `Tin nhắn từ ${title}`}
+                >
+                  {!isSelf && !compact ? (
+                    <MiniAvatar>{avatarSrc ? <img src={avatarSrc} alt="avatar" /> : <Fallback />}</MiniAvatar>
+                  ) : <MiniSpacer />}
+
+                  <Bubble compact={compact} self={isSelf}>
+                    <p>{m.message}</p>
+                  </Bubble>
+                </Row>
+              );
+            })}
+          </section>
+        ))}
+        {isTyping && (
+          <Row className="left">
+            <MiniAvatar>{avatarSrc ? <img src={avatarSrc} alt="avatar" /> : <Fallback />}</MiniAvatar>
+            <TypingBubble aria-label="Đang nhập...">
+              <Dot />
+              <Dot />
+              <Dot />
+            </TypingBubble>
+          </Row>
+        )}
+        <div ref={endRef} />
+      </MessagesArea>
+
+      <Footer>
+        <ChatInput handleSendMsg={handleSendMsg} onTyping={setIsTyping} />
+      </Footer>
+    </Shell>
   );
 }
 
-// ============ Styles ============
-const glow = keyframes`
-  0% { box-shadow: 0 0 0px rgba(154, 134, 243, 0.0); }
-  100% { box-shadow: 0 0 14px rgba(154, 134, 243, 0.35); }
-`;
+// ===== Helpers =====
+function groupByDate(list) {
+  if (!Array.isArray(list) || list.length === 0) return [];
+  const fmt = (d) => {
+    const t = new Date(d || Date.now());
+    const dd = String(t.getDate()).padStart(2, "0");
+    const mm = String(t.getMonth() + 1).padStart(2, "0");
+    const yyyy = t.getFullYear();
+    return `${dd}/${mm}/${yyyy}`;
+  };
+  const groups = [];
+  let map = new Map();
+  for (const m of list) {
+    const k = fmt(m.ts || Date.now());
+    if (!map.has(k)) map.set(k, []);
+    map.get(k).push(m);
+  }
+  for (const [dateLabel, items] of map.entries()) groups.push({ dateLabel, items });
+  // Ensure ascending by date according to first item's ts
+  return groups.sort((a, b) => {
+    const ta = a.items[0]?.ts || 0;
+    const tb = b.items[0]?.ts || 0;
+    return ta - tb;
+  });
+}
 
-const Container = styled.div`
+// ===== Styles =====
+const Shell = styled.div`
   --bg: #0a0720;
-  --panel: rgba(255, 255, 255, 0.06);
-  --panel-strong: rgba(255, 255, 255, 0.12);
+  --panel: rgba(255,255,255,0.06);
+  --panel-strong: rgba(255,255,255,0.12);
   --accent: #9a86f3;
-  --accent-weak: #b8aef7;
-  --text: #ffffff;
-  --muted: #c8c8d0;
+  --text: #fff;
+  --muted: #bdbdd3;
 
   display: grid;
-  grid-template-columns: 48px 1fr;
-  align-items: end;
+  grid-template-rows: 64px 1fr auto;
+  height: 100%;
+  background: radial-gradient(1200px 600px at 20% -20%, rgba(154,134,243,0.15), transparent),
+              linear-gradient(180deg, rgba(10, 7, 32, 0.95), rgba(10, 7, 32, 0.98));
+`;
+
+const Header = styled.header`
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 16px;
+  border-bottom: 1px solid rgba(255,255,255,0.08);
+`;
+
+const UserBlock = styled.div`
+  display: flex;
+  align-items: center;
   gap: 12px;
-  width: 100%;
-  background: linear-gradient(180deg, rgba(10, 7, 32, 0.8), rgba(10, 7, 32, 0.95));
-  padding: 12px 16px;
-  position: relative;
-`;
-
-const Toolbar = styled.div`
-  position: relative;
-  width: 48px;
-  height: 48px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-`;
-
-const IconButton = styled.button`
-  width: 48px;
-  height: 48px;
-  display: grid;
-  place-items: center;
-  border: none;
-  border-radius: 12px;
-  background: var(--panel);
-  color: #ffff56;
-  transition: transform 0.12s ease, background 0.12s ease, opacity 0.2s;
-  cursor: pointer;
-
-  svg { font-size: 22px; }
-
-  &:hover { background: var(--panel-strong); transform: translateY(-1px); }
-  &:active { transform: translateY(0); }
-  &:disabled { opacity: 0.5; cursor: not-allowed; }
-`;
-
-const EmojiPanel = styled.div`
-  position: absolute;
-  bottom: 56px;
-  left: 0;
-  z-index: 50;
-  background: #080420;
-  border: 1px solid var(--accent);
-  border-radius: 14px;
-  overflow: hidden;
-  animation: ${glow} 180ms ease-out forwards;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
-
-  /* Tweak third-party classes lightly */
-  .EmojiPickerReact {
-    --epr-emoji-size: 24px;
-    --epr-category-navigation-button-size: 28px;
-    --epr-search-input-bg-color: transparent;
-    --epr-bg-color: #080420;
-    --epr-text-color: #ffffff;
-    border: none !important;
-  }
-  .EmojiPickerReact .epr-search-container input {
-    color: var(--text);
-    border: 1px solid var(--accent);
-  }
-`;
-
-const Form = styled.form`
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  width: 100%;
-  padding: 8px;
-  border-radius: 16px;
-  background: var(--panel);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-`;
-
-const TextArea = styled.textarea`
-  flex: 1;
-  resize: none;
-  max-height: 160px;
-  min-height: 44px;
-  background: transparent;
-  border: none;
   color: var(--text);
-  font-size: 16px;
-  line-height: 1.35;
-  padding: 10px 12px;
-  outline: none;
-
-  &::placeholder { color: #bdbdd3; }
-  &:focus { outline: none; }
+  h3 { margin: 0 0 2px 0; font-size: 16px; font-weight: 600; }
 `;
 
-const SendButton = styled.button`
+const Avatar = styled.div`
+  width: 40px; height: 40px; border-radius: 12px; overflow: hidden; background: var(--panel);
+  img { width: 100%; height: 100%; object-fit: cover; display: block; }
+`;
+
+const Fallback = styled.div`
+  width: 100%; height: 100%; background: var(--panel);
+`;
+
+const SubtleRow = styled.div`
+  display: flex; align-items: center; gap: 6px; color: var(--muted); font-size: 12px;
+`;
+
+const OnlineDot = styled.span`
+  width: 8px; height: 8px; border-radius: 50%; background: #3ddc84; display: inline-block;
+`;
+
+const MessagesArea = styled.main`
+  position: relative;
+  overflow: auto;
+  padding: 16px 16px 8px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  &::-webkit-scrollbar { width: 8px; }
+  &::-webkit-scrollbar-thumb { background: var(--panel-strong); border-radius: 8px; }
+`;
+
+const Footer = styled.footer`
+  padding: 8px 12px 12px 12px;
+  border-top: 1px solid rgba(255,255,255,0.08);
+`;
+
+const DateDivider = styled.div`
+  display: grid; place-items: center; margin: 10px 0; position: relative;
+  span {
+    font-size: 12px; color: var(--muted); padding: 4px 10px; border-radius: 999px;
+    background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.1);
+  }
+  &::before { content: ""; position: absolute; left: 0; right: 0; top: 50%; height: 1px; background: rgba(255,255,255,0.08); z-index: -1; }
+`;
+
+const Row = styled.div`
   display: grid;
-  place-items: center;
-  width: 48px;
-  height: 48px;
+  grid-template-columns: 32px 1fr;
+  align-items: end;
+  gap: 8px;
+  &.right {
+    grid-template-columns: 1fr 32px;
+    justify-items: end;
+  }
+`;
+
+const MiniAvatar = styled.div`
+  width: 28px; height: 28px; border-radius: 8px; overflow: hidden; background: var(--panel);
+  img { width: 100%; height: 100%; object-fit: cover; display: block; }
+`;
+
+const MiniSpacer = styled.div`
+  width: 28px; height: 28px;
+`;
+
+const Bubble = styled.div`
+  max-width: min(72ch, 72%);
+  background: ${({ self }) => (self ? "rgba(154,134,243,0.18)" : "rgba(255,255,255,0.08)")};
+  border: 1px solid ${({ self }) => (self ? "rgba(154,134,243,0.35)" : "rgba(255,255,255,0.14)")};
+  color: var(--text);
+  padding: ${({ compact }) => (compact ? "8px 12px" : "12px 14px")};
   border-radius: 14px;
-  border: none;
-  background: var(--accent);
-  color: white;
-  cursor: pointer;
-  transition: transform 0.12s ease, filter 0.2s, opacity 0.2s;
+  border-bottom-right-radius: ${({ self }) => (self ? "4px" : "14px")};
+  border-bottom-left-radius: ${({ self }) => (self ? "14px" : "4px")};
+  box-shadow: 0 6px 18px rgba(0,0,0,0.2);
+  p { margin: 0; white-space: pre-wrap; word-break: break-word; }
+`;
 
-  svg { font-size: 22px; }
+const TypingBubble = styled(Bubble)`
+  display: inline-flex; align-items: center; gap: 6px; width: auto; max-width: unset;
+`;
 
-  &:hover { filter: brightness(1.05); transform: translateY(-1px); }
-  &:active { transform: translateY(0); }
-  &:disabled { opacity: 0.5; cursor: not-allowed; }
+const typing = keyframes`
+  0% { transform: translateY(0); opacity: 0.5; }
+  50% { transform: translateY(-3px); opacity: 1; }
+  100% { transform: translateY(0); opacity: 0.5; }
+`;
+
+const Dot = styled.span`
+  width: 6px; height: 6px; border-radius: 50%; background: var(--text); display: inline-block;
+  animation: ${typing} 1s ease-in-out infinite;
+  &:nth-child(2) { animation-delay: 0.15s; }
+  &:nth-child(3) { animation-delay: 0.3s; }
+`;
+
+const ErrorRow = styled.div`
+  margin: 8px auto; color: #ffb4b4; font-size: 14px; text-align: center;
+`;
+
+const EmptyState = styled.div`
+  margin: 32px auto; text-align: center; color: var(--muted);
+  h4 { color: var(--text); margin-bottom: 6px; }
+`;
+
+const shimmer = keyframes`
+  0% { background-position: -200px 0; }
+  100% { background-position: calc(200px + 100%) 0; }
+`;
+
+const LoadingRow = styled.div`
+  display: grid; gap: 8px; margin: 8px 0;
+`;
+
+const BubbleSkeleton = styled.div`
+  height: 42px; width: 60%; border-radius: 14px;
+  background: linear-gradient(90deg, rgba(255,255,255,0.08) 25%, rgba(255,255,255,0.16) 37%, rgba(255,255,255,0.08) 63%);
+  background-size: 400% 100%; animation: ${shimmer} 1.4s ease infinite;
+  margin-left: ${({ right }) => (right ? "auto" : "0")};
 `;

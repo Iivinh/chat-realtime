@@ -12,7 +12,6 @@ export default function ChatContainer({ currentChat, socket }) {
   const [arrivalMessage, setArrivalMessage] = useState(null);
 
   // ----------------------------------------------------
-  // 1. Lấy tin nhắn cũ khi chat thay đổi (Đã sửa lỗi async)
   // ----------------------------------------------------
   useEffect(() => {
     const fetchMessages = async () => {
