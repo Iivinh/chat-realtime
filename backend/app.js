@@ -44,16 +44,18 @@ const io = socket(server, {
     credentials: true,
   },
 });
-
+global.chatSocket = io;
 global.onlineUsers = new Map();
 io.on("connection", (socket) => {
-  global.chatSocket = socket;
   socket.on("add-user", (userId) => {
     onlineUsers.set(userId, socket.id);
   });
 
+  // TRONG app.js (Đoạn mới)
+
   socket.on("send-msg", (data) => {
     const sendUserSocket = onlineUsers.get(data.to);
+    // 1. Gửi tin nhắn và tín hiệu cập nhật cho người nhận
     if (sendUserSocket) {
       socket.to(sendUserSocket).emit("msg-recieve", data.msg);
     }

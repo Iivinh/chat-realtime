@@ -30,9 +30,12 @@ const addMessage = async (req, res, next) => {
       users: [from, to],
       sender: from,
     });
-
-    if (data) return res.json({ msg: "Message added successfully." });
-    else return res.json({ msg: "Failed to add message to the database" });
+    
+    if (data) {
+      return res.json({ msg: "Tin nhắn đã được thêm thành công." });
+    } else {
+      return res.json({ msg: "Không thể thêm tin nhắn vào database." });
+    }
   } catch (ex) {
     next(ex);
   }

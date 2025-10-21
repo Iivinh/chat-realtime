@@ -11,6 +11,8 @@ export default function ChatContainer({ currentChat, socket, onMessageSent }) {
   const scrollRef = useRef();
   const [arrivalMessage, setArrivalMessage] = useState(null);
 
+  // ----------------------------------------------------
+  // ----------------------------------------------------
   useEffect(() => {
     const fetchMessages = async () => {
       const storedData = localStorage.getItem(import.meta.env.VITE_LOCALHOST_KEY);
@@ -25,59 +27,81 @@ export default function ChatContainer({ currentChat, socket, onMessageSent }) {
         setMessages(response.data);
       }
     };
+
     fetchMessages();
+
+    // Cleanup không cần thiết ở đây
   }, [currentChat]);
 
-  useEffect(() => {
-    const getCurrentChat = async () => {
-      if (currentChat) {
-        await JSON.parse(
-          localStorage.getItem(import.meta.env.VITE_LOCALHOST_KEY)
-        )._id;
-      }
-    };
-    getCurrentChat();
-  }, [currentChat]);
-
+  // ----------------------------------------------------
+  // 2. Xử lý Logic Gửi Tin nhắn (Tối ưu Functional Update)
+  // ----------------------------------------------------
   const handleSendMsg = async (msg) => {
-    const data = await JSON.parse(
-      localStorage.getItem(import.meta.env.VITE_LOCALHOST_KEY)
-    );
+    const storedData = localStorage.getItem(import.meta.env.VITE_LOCALHOST_KEY);
+
+    if (!storedData) return; // Bảo vệ khỏi lỗi nếu không có user
+
+    const data = await JSON.parse(storedData);
+
+    // Gửi qua Socket.IO
     socket.current.emit("send-msg", {
       to: currentChat._id,
       from: data._id,
       msg,
     });
+
+    // Lưu vào Database (Backend API)
     await axios.post(sendMessageRoute, {
       from: data._id,
       to: currentChat._id,
       message: msg,
     });
-
     if (onMessageSent) {
       onMessageSent();
     }
-    
-    const msgs = [...messages];
-    msgs.push({ fromSelf: true, message: msg });
-    setMessages(msgs);
+    // Cập nhật State cục bộ (Functional Update)
+    const sentMsg = { fromSelf: true, message: msg };
+    setMessages((prevMsgs) => [...prevMsgs, sentMsg]);
   };
 
+  // ----------------------------------------------------
+  // 3. Xử lý Tin nhắn Đến (Sửa lỗi Dependency và Cleanup)
+  // ----------------------------------------------------
+  // ----------------------------------------------------
+  // 3. Xử lý Tin nhắn Đến (Tối ưu Cleanup và Dependency)
+  // ----------------------------------------------------
   useEffect(() => {
-    if (socket.current) {
-      socket.current.on("msg-recieve", (msg) => {
-        setArrivalMessage({ fromSelf: false, message: msg });
-      });
-    }
-  }, []);
+    const currentSocket = socket.current; // TẠO BẢN SAO CỦA GIÁ TRỊ REF
 
+    if (currentSocket) {
+      const handleRecieve = (msg) => {
+        setArrivalMessage({ fromSelf: false, message: msg });
+      };
+
+      currentSocket.on("msg-recieve", handleRecieve);
+
+      return () => {
+        // SỬ DỤNG BẢN SAO TRONG CLEANUP
+        currentSocket.off("msg-recieve", handleRecieve);
+      };
+    }
+    // Dependency array trống là đúng trong trường hợp này.
+  }, [socket]);
+  // ----------------------------------------------------
+  // 4. Thêm Tin nhắn Đến vào Mảng Tin nhắn
+  // ----------------------------------------------------
   useEffect(() => {
+    // Chỉ chạy khi arrivalMessage có giá trị
     arrivalMessage && setMessages((prev) => [...prev, arrivalMessage]);
   }, [arrivalMessage]);
 
+  // ----------------------------------------------------
+  // 5. Auto Scroll
+  // ----------------------------------------------------
   useEffect(() => {
     scrollRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
+
 
   return (
     <Container>
@@ -98,7 +122,7 @@ export default function ChatContainer({ currentChat, socket, onMessageSent }) {
       <div className="chat-messages">
         {messages.map((message) => {
           return (
-            <div ref={scrollRef} key={uuidv4()}>
+            <div key={uuidv4()}> {/* key ở đây là đủ */}
               <div
                 className={`message ${message.fromSelf ? "sended" : "recieved"
                   }`}
@@ -110,11 +134,14 @@ export default function ChatContainer({ currentChat, socket, onMessageSent }) {
             </div>
           );
         })}
+        {/* Đặt scrollRef ở đây là đủ */}
+        <div ref={scrollRef} />
       </div>
       <ChatInput handleSendMsg={handleSendMsg} />
     </Container>
   );
 }
+
 
 const COOL_ACCENT = '#A7C5F8';
 const STATE_ACCENT = '#C2D4F6';

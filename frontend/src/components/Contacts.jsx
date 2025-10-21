@@ -4,11 +4,12 @@ import Logo from "../assets/logo.svg";
 
 // Import axios (nếu cần thiết cho việc lấy dữ liệu khác)
 
-export default function Contacts({ contacts, changeChat }) {
+export default function Contacts({ contacts, changeChat, handleSearch, isSearching, searchResults }) {
+  const [currentUserId, setCurrentUserId] = useState(undefined);
   const [currentUserName, setCurrentUserName] = useState(undefined);
   const [currentUserImage, setCurrentUserImage] = useState(undefined);
   const [currentSelected, setCurrentSelected] = useState(undefined);
-
+  const [searchQuery, setSearchQuery] = useState("");
   // Khắc phục lỗi: Tách logic async ra khỏi hàm chính của useEffect
   useEffect(() => {
     const fetchUserData = async () => {
@@ -21,6 +22,7 @@ export default function Contacts({ contacts, changeChat }) {
         // Dùng try...catch để xử lý lỗi parse nếu dữ liệu không phải JSON
         try {
           const data = await JSON.parse(storedData);
+          setCurrentUserId(data._id);
           setCurrentUserName(data.username);
           setCurrentUserImage(data.avatarImage);
         } catch (error) {
@@ -35,11 +37,21 @@ export default function Contacts({ contacts, changeChat }) {
     fetchUserData();
   }, []); // ✅ Array trống là đúng, vì bạn chỉ cần chạy nó một lần khi mount
 
-  const changeCurrentChat = (index, contact) => {
-    setCurrentSelected(index);
-    changeChat(contact);
+  const handleInputChange = (e) => {
+    const query = e.target.value;
+    setSearchQuery(query);
+    handleSearch(query); // Gọi hàm tìm kiếm trong Chat.jsx
   };
 
+  const changeCurrentChat = (index, contact) => {
+    if (!isSearching) {
+      setCurrentSelected(index);
+    } else {
+      setCurrentSelected(undefined);
+    }
+    changeChat(contact);
+  };
+  const displayList = isSearching ? searchResults : contacts;
   return (
     <>
       {/* Sử dụng điều kiện để kiểm tra nếu dữ liệu user đã tải xong.
@@ -55,27 +67,62 @@ export default function Contacts({ contacts, changeChat }) {
             {/* <img src={Logo} alt="logo" /> */}
             <h3>snappy</h3>
           </div>
+          <SearchContainer>
+            <input
+              type="text"
+              placeholder="Tìm username để bắt đầu chat..."
+              value={searchQuery}
+              onChange={handleInputChange}
+            />
+          </SearchContainer>
           <div className="contacts">
-            {contacts.map((contact, index) => {
-              return (
-                <div
-                  key={contact._id}
-                  className={`contact ${index === currentSelected ? "selected" : ""
-                    }`}
-                  onClick={() => changeCurrentChat(index, contact)}
-                >
-                  <div className="avatar">
-                    <img
-                      src={`data:image/svg+xml;base64,${contact.avatarImage}`}
-                      alt=""
-                    />
+            {displayList.length > 0 ? (
+              displayList.map((contact, index) => {
+                const lastMsg = contact.lastMessage;
+                let senderText = "";
+                let isCurrentUserSender = false;
+
+                if (lastMsg && currentUserId) {
+                  isCurrentUserSender = lastMsg.sender === currentUserId;
+                  senderText = isCurrentUserSender ? "Bạn: " : "";
+                }
+
+                // Chỉ highlight nếu không đang tìm kiếm
+                const isSelected = !isSearching && index === currentSelected;
+
+                return (
+                  <div
+                    key={contact._id}
+                    className={`contact ${isSelected ? "selected" : ""}`}
+                    onClick={() => changeCurrentChat(index, contact)}
+                  >
+                    <div className="avatar">
+                      <img
+                        src={`data:image/svg+xml;base64,${contact.avatarImage}`}
+                        alt=""
+                      />
+                    </div>
+                    <div className="details">
+                      <div className="username">
+                        <h3>{contact.username}</h3>
+                      </div>
+                      {/* ẨN TIN NHẮN CUỐI CÙNG KHI ĐANG TÌM KIẾM */}
+                      {!isSearching && (
+                        <div className="last-message">
+                          <p className={isCurrentUserSender ? "self-sent" : ""}>
+                            {lastMsg ? `${senderText}${lastMsg.message}` : "Bắt đầu trò chuyện"}
+                          </p>
+                        </div>
+                      )}
+                    </div>
                   </div>
-                  <div className="username">
-                    <h3>{contact.username}</h3>
-                  </div>
-                </div>
-              );
-            })}
+                );
+              })
+            ) : (
+              <NoResults>
+                {isSearching ? "Không tìm thấy người dùng." : "Chưa có cuộc trò chuyện nào."}
+              </NoResults>
+            )}
           </div>
           <div className="current-user">
             <div className="avatar">
@@ -88,8 +135,9 @@ export default function Contacts({ contacts, changeChat }) {
               <h2>{currentUserName}</h2>
             </div>
           </div>
-        </Container>
-      )}
+        </Container >
+      )
+      }
     </>
   );
 }
@@ -100,9 +148,30 @@ const PRIMARY_TEXT_COLOR = '#204683';
 const BACKGROUND_COLOR = '#292A2D';
 const FORM_COLOR = '#00000076';
 
+const SearchContainer = styled.div`
+    padding: 1rem;
+    input {
+        width: 100%;
+        padding: 0.5rem;
+        border-radius: 0.5rem;
+        border: 1px solid #4C4C4C;
+        background-color: #202022;
+        color: white;
+        font-size: 1rem;
+        outline: none;
+    }
+`;
+
+const NoResults = styled.div`
+    padding: 1rem;
+    text-align: center;
+    color: #A7C5F8;
+    font-style: italic;
+`;
+
 const Container = styled.div`
   display: grid;
-  grid-template-rows: 10% 75% 15%;
+  grid-template-rows: 10% 10% 65% 15%; 
   overflow: hidden;
   background-color: ${FORM_COLOR};
   .brand {

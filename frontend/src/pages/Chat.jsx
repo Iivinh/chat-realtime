@@ -3,7 +3,7 @@ import axios from "axios";
 import { useNavigate } from "react-router-dom";
 import { io } from "socket.io-client";
 import styled from "styled-components";
-import { allUsersRoute, host } from "../utils/APIRoutes";
+import { allConversationalUsersRoute, searchUserRoute, host } from "../utils/APIRoutes";
 import ChatContainer from "../components/ChatContainer";
 import Contacts from "../components/Contacts";
 import Welcome from "../components/Welcome";
@@ -15,6 +15,9 @@ export default function Chat() {
   const [currentChat, setCurrentChat] = useState(undefined);
   const [currentUser, setCurrentUser] = useState(undefined);
 
+  const [refreshFlag, setRefreshFlag] = useState(false); // Kích hoạt tải lại Contacts
+  const [isSearching, setIsSearching] = useState(false);
+  const [searchResults, setSearchResults] = useState([]);
   // 1. KHẮC PHỤC LỖI ASYNC: Kiểm tra Đăng nhập/Lấy User
   useEffect(() => {
     const checkUser = async () => {
@@ -23,9 +26,9 @@ export default function Chat() {
       } else {
         const storedData = localStorage.getItem(import.meta.env.VITE_LOCALHOST_KEY);
         if (storedData) {
-            setCurrentUser(await JSON.parse(storedData));
+          setCurrentUser(await JSON.parse(storedData));
         } else {
-            navigate("/login");
+          navigate("/login");
         }
       }
     };
@@ -42,33 +45,87 @@ export default function Chat() {
 
   // 3. KHẮC PHỤC LỖI ASYNC: Lấy Danh bạ
   useEffect(() => {
-    const fetchContacts = async () => {
+    const currentSocket = socket.current;
+    const handleConversationUpdate = () => {
+      console.log("Nhận tín hiệu cập nhật danh bạ Realtime!");
+      setIsSearching(false);
+      setSearchResults([]);
+      setRefreshFlag(prev => !prev);
+    };
+
+    if (currentSocket) {
+      currentSocket.on("update-conversations", handleConversationUpdate);
+
+      // 🟢 SỬA LỖI CLEANUP: Cần truyền tên hàm handler vào off() 🟢
+      return () => {
+        // Chỉ hủy lắng nghe hàm handleConversationUpdate cụ thể
+        currentSocket.off("update-conversations", handleConversationUpdate);
+      };
+    }
+  }, [socket, setIsSearching, setSearchResults, setRefreshFlag]);
+
+  useEffect(() => {
+    const fetchConversations = async () => {
       if (currentUser.isAvatarImageSet) {
-        const data = await axios.get(`${allUsersRoute}/${currentUser._id}`);
-        setContacts(data.data);
+        try {
+          // Sử dụng getConversationsRoute MỚI (đã sửa ở Back-end)
+          const { data } = await axios.get(`${allConversationalUsersRoute}/${currentUser._id}`);
+          setContacts(data);
+        } catch (error) {
+          console.error("Lỗi khi tải danh sách cuộc trò chuyện:", error);
+        }
       } else {
         navigate("/setAvatar");
       }
     };
 
-    if (currentUser) { // Chỉ gọi khi currentUser đã được thiết lập
-      fetchContacts();
+    if (currentUser) {
+      fetchConversations();
     }
-  }, [currentUser, navigate]); // Thêm navigate vào dependency
+    // THÊM refreshFlag VÀO DEPENDENCY ĐỂ KÍCH HOẠT REALTIME RELOAD
+  }, [currentUser, navigate, refreshFlag]);
+
+  // TRONG Chat.jsx (Hàm handleSearchUser)
+
+  const handleSearchUser = async (query) => {
+    if (!currentUser || query.trim() === "") {
+      setIsSearching(false);
+      setSearchResults([]);
+      return;
+    }
+
+    setIsSearching(true);
+    try {
+      const { data } = await axios.get(`${searchUserRoute}?username=${query}&userId=${currentUser._id}`);
+      setSearchResults(data);
+    } catch (error) {
+      console.error("Lỗi khi tìm kiếm người dùng:", error);
+      setSearchResults([]);
+    }
+  };
 
   const handleChatChange = (chat) => {
     setCurrentChat(chat);
+    setIsSearching(false);
+    setSearchResults([]);
+    setRefreshFlag(prev => !prev);
   };
 
   return (
     <>
       <Container>
         <div className="container">
-          <Contacts contacts={contacts} changeChat={handleChatChange} />
+          <Contacts
+            contacts={contacts}
+            changeChat={handleChatChange}
+            handleSearch={handleSearchUser}
+            isSearching={isSearching}
+            searchResults={searchResults} />
           {currentChat === undefined ? (
             <Welcome />
           ) : (
-            <ChatContainer currentChat={currentChat} socket={socket} />
+            <ChatContainer currentChat={currentChat} socket={socket}
+              onMessageSent={() => setRefreshFlag(prev => !prev)} />
           )}
         </div>
       </Container>
@@ -86,8 +143,8 @@ const Container = styled.div`
   height: 100vh;
   width: 100vw;
   display: flex;
-  flex-direction: flex-start;
-  justify-content: flex-start;
+  flex-direction: row;
+  justify-content: center;
   align-items: stretch;
   padding: 0;
   margin: 0;
