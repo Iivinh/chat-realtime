@@ -8,6 +8,7 @@
     "dev": "nodemon --exec node app.js"
   },
   "dependencies": {
+    "amqplib": "^0.10.9",
     "bcrypt": "^6.0.0",
     "cookie-parser": "~1.4.4",
     "cors": "^2.8.5",

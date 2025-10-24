@@ -11,7 +11,6 @@ var messagesRouter = require('./routes/messages');
 
 var app = express();
 const socket = require("socket.io");
-require("dotenv").config();
 
 app.use(logger('dev'));
 app.use(cors());
@@ -21,13 +20,16 @@ app.use(cookieParser());
 app.use(express.static(path.join(__dirname, 'public')));
 
 mongoose
-  .connect(process.env.MONGO_URL)
+  .connect(process.env.MONGO_URI)
   .then(() => {
     console.log("DB Connetion Successfull");
   })
   .catch((err) => {
+    // ⚠️ Lỗi quan trọng: In ra cả chuỗi kết nối để dễ debug trong log Docker
+    console.log(`DB Connection Failed. URI used: ${process.env.MONGO_URI}`);
     console.log(err.message);
   });
+
 app.get("/ping", (_req, res) => {
   return res.json({ msg: "Ping Successful" });
 });
@@ -35,9 +37,10 @@ app.get("/ping", (_req, res) => {
 app.use('/api/auth', authRouter);
 app.use('/api/messages', messagesRouter);
 
-const server = app.listen(process.env.PORT, () =>
-  console.log(`Server started on ${process.env.PORT}`)
-);
+const PORT = process.env.PORT || 5000;
+const http = require('http'); // <--- Đảm bảo bạn đã require 'http'
+const server = http.createServer(app);
+
 const io = socket(server, {
   cors: {
     origin: "http://localhost:3000",
@@ -61,5 +64,7 @@ io.on("connection", (socket) => {
     }
   });
 });
-
-module.exports = app;
+server.listen(PORT, () =>
+  console.log(`Server started on ${PORT}`)
+);
+// module.exports = app;
