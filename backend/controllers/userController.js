@@ -40,10 +40,17 @@ const register = async (req, res, next) => {
   }
 };
 
-const logout = (req, res, next) => {
+const logout = async (req, res, next) => {
   try {
     if (!req.params.id) return res.json({ msg: "Yêu cầu id người dùng." });
-    onlineUsers.delete(req.params.id);
+    const redisClient = global.redisClient;
+    // onlineUsers.delete(req.params.id);
+    // ✅ THAY THẾ: Xóa trạng thái online khỏi Redis Hash Map chính
+    // Sau khi logout, User không còn online, nên không cần 
+    // phải lưu socketId -> userId nữa.
+    await redisClient.hdel('userSocketMap', req.params.id);
+    // 2. Xóa Token/Cookie (Logic cơ bản)
+    res.cookie("jwt", "", { maxAge: 1, httpOnly: true });
     return res.status(200).send();
   } catch (ex) {
     next(ex);
