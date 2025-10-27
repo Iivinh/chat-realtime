@@ -8,6 +8,7 @@
     "dev": "nodemon --exec node app.js"
   },
   "dependencies": {
+    "@socket.io/redis-adapter": "^8.3.0",
     "amqplib": "^0.10.9",
     "bcrypt": "^6.0.0",
     "cookie-parser": "~1.4.4",
@@ -19,6 +20,7 @@
     "http-errors": "~1.6.3",
     "mongoose": "^8.19.1",
     "morgan": "~1.9.1",
+    "redis": "^4.7.1",
     "socket.io": "^4.8.1"
   },
   "devDependencies": {

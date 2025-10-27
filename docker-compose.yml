@@ -1,4 +1,15 @@
 services:
+  # ✅ THÊM REDIS CHO SOCKET.IO ADAPTER (Đồng bộ giữa các backend replicas)
+  redis:
+    image: redis:7-alpine
+    container_name: chat_redis
+    ports:
+      - "6379:6379"
+    restart: always
+    command: redis-server --appendonly yes
+    volumes:
+      - redis_data:/data
+
   database:
     image: mongo:latest
     container_name: chat_mongodb
@@ -10,6 +21,7 @@ services:
       MONGO_INITDB_ROOT_USERNAME: chatuser
       MONGO_INITDB_ROOT_PASSWORD: chatpassword
     restart: always
+
   backend:
     build: ./backend
     command: npm start
@@ -18,11 +30,16 @@ services:
       PORT: 5000
       RABBITMQ_USER: ${RABBITMQ_USER}
       RABBITMQ_PASS: ${RABBITMQ_PASS}
+      # ✅ Thêm Redis config
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
     depends_on:
       - database
+      - redis  # ✅ Backend phụ thuộc vào Redis
     restart: always
     deploy:
-      replicas: 2
+      replicas: 2  # Giữ nguyên 2 replicas
+
   nginx:
     image: nginx:latest
     container_name: chat_nginx
@@ -33,6 +50,7 @@ services:
     depends_on:
       - backend
     restart: always
+
   front:
     build: ./frontend
     container_name: chat_frontend
@@ -43,5 +61,7 @@ services:
     environment:
       VITE_API_URL: http://localhost:5000
     restart: always
+
 volumes:
   mongo_data:
+  redis_data:  # ✅ Volume cho Redis persistence
