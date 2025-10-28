@@ -61,8 +61,8 @@ services:
     depends_on:
       - nginx
     environment:
-      # VITE_API_URL: http://localhost:5000
-      VITE_API_URL: http://host.docker.internal:5000
+      VITE_API_URL: http://localhost:5000
+      # VITE_API_URL: http://host.docker.internal:5000
     restart: always
 
 volumes:

@@ -188,12 +188,17 @@ const EmojiPanel = styled.div`
     --epr-emoji-size: 24px;
     --epr-category-navigation-button-size: 28px;
     --epr-search-input-bg-color: transparent;
-    --epr-bg-color: #080420;
-    --epr-text-color: #ffffff;
+    --epr-bg-color: var(--bg);
+    --epr-text-color: var(--text);
     border: none !important;
+  }
+  .EmojiPickerReact .epr-emoji-category-label {
+    color: var(--text);
+    background-color: var(--bg);
   }
   .EmojiPickerReact .epr-search-container input {
     color: var(--text);
+    background-color: var(--bg);
     border: 1px solid var(--accent);
   }
 `;
