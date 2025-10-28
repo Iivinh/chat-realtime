@@ -143,7 +143,11 @@ io.on("connection", (socket) => {
     
     // 2. Gửi tin nhắn cho người nhận (nếu online)
     if (recipientSocketId) {
-      io.to(recipientSocketId).emit("msg-recieve", msg);
+      io.to(recipientSocketId).emit("msg-recieve", {
+        message: msg,
+        from: from,
+        to: to
+      });
       io.to(recipientSocketId).emit("update-conversations");
       console.log(`[EMIT] Message and update sent to recipient ${recipientSocketId}`);
     } else {
