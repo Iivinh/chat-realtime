@@ -187,6 +187,21 @@ const EmojiPanel = styled.div`
   .EmojiPickerReact {
     --epr-emoji-size: 24px;
     --epr-category-navigation-button-size: 28px;
+<<<<<<< HEAD
+    --epr-search-input-bg-color: transparent;
+    --epr-bg-color: var(--bg);
+    --epr-text-color: var(--text);
+    border: none !important;
+  }
+  .EmojiPickerReact .epr-emoji-category-label {
+    color: var(--text);
+    background-color: var(--bg);
+  }
+  .EmojiPickerReact .epr-search-container input {
+    color: var(--text);
+    background-color: var(--bg);
+    border: 1px solid var(--accent);
+=======
     --epr-bg-color: #14131bff !important;  /* Màu nền tối */
     --epr-category-label-bg-color: #0a0720 !important;  /* Màu nền category */
     --epr-search-input-bg-color: rgba(255, 255, 255, 0.08) !important;  /* Màu nền search */
@@ -241,6 +256,7 @@ const EmojiPanel = styled.div`
   
   .EmojiPickerReact button:hover {
     background-color: rgba(255, 255, 255, 0.1) !important;
+>>>>>>> 21ed47e5b089a9cdd30113490aa6b1ae235058fc
   }
 `;
 

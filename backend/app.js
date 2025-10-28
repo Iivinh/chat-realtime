@@ -11,7 +11,7 @@ const { Server } = require('socket.io');
 const Redis = require('ioredis');
 const { createAdapter } = require('@socket.io/redis-adapter');
 const amqp = require('amqplib');
-
+const Message = require('./models/messageModel');
 var authRouter = require('./routes/auth');
 var messagesRouter = require('./routes/messages');
 
@@ -102,7 +102,32 @@ const connectRabbitMQ = async () => {
 
     // Khai báo Queue cho việc ghi lịch sử chat bất đồng bộ
     await rabbitmqChannel.assertQueue('chat_history_queue', { durable: true });
+    // 💡 BẮT ĐẦU LẮNG NGHE HÀNG ĐỢI (CONSUME LOGIC)
+    rabbitmqChannel.consume('chat_history_queue', async (msg) => {
+      if (msg !== null) {
+        try {
+          // 1. Phân tích cú pháp tin nhắn
+          const data = JSON.parse(msg.content.toString());
+          const { from, to, msg: messageContent } = data; // Lấy dữ liệu từ object tin nhắn gửi đi
 
+          // 2. GHI LỊCH SỬ TIN NHẮN VÀO MONGODB BẤT ĐỒNG BỘ
+          await Message.create({
+            message: { text: messageContent },
+            sender: from,
+            users: [from, to]
+          });
+
+          console.log(`[RabbitMQ Worker] Saved message from ${from} to MongoDB.`);
+
+          // 3. Xác nhận đã xử lý xong tin nhắn (RẤT QUAN TRỌNG!)
+          rabbitmqChannel.ack(msg);
+
+        } catch (error) {
+          console.error("[RabbitMQ Worker] Error processing message:", error.message);
+          // Nếu ghi vào DB lỗi, bạn có thể nack(msg) để tin nhắn quay lại hàng đợi
+        }
+      }
+    }, { noAck: false });
   } catch (error) {
     console.error("RabbitMQ Connection Failed:", error.message);
     setTimeout(connectRabbitMQ, 5000);
