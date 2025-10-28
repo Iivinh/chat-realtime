@@ -50,11 +50,12 @@ export default function Chat() {
       });
       
       socket.current.emit("add-user", currentUser._id);
-      console.log("Socket connected and user added:", currentUser._id);
+      console.log("[SOCKET] Connected and user added:", currentUser._id);
 
       return () => {
         if (socket.current) {
           socket.current.disconnect();
+          console.log("[SOCKET] Disconnected");
         }
       };
     }
@@ -65,12 +66,17 @@ export default function Chat() {
     if (!socket.current) return;
 
     const handleMessageReceive = (msg) => {
-      console.log("New message received:", msg);
+      console.log("[SOCKET] New message received:", msg);
+      // ✅ Tắt search mode khi nhận tin nhắn mới
+      setIsSearching(false);
+      setSearchResults([]);
+      // Trigger refresh để load lại danh sách conversations
       setRefreshFlag(prev => !prev);
     };
 
     const handleConversationUpdate = () => {
-      console.log("Conversation update signal received");
+      console.log("[SOCKET] Conversation update signal received");
+      // ✅ Tắt search mode và refresh
       setIsSearching(false);
       setSearchResults([]);
       setRefreshFlag(prev => !prev);
@@ -93,15 +99,14 @@ export default function Chat() {
       isPageVisible.current = !document.hidden;
       
       if (!document.hidden && currentUser) {
-        // ✅ Khi user quay lại tab → Refresh ngay lập tức
-        console.log("Page visible again, refreshing conversations...");
+        console.log("[VISIBILITY] Page visible again, refreshing conversations...");
         setRefreshFlag(prev => !prev);
       }
     };
 
     const handleFocus = () => {
       if (currentUser) {
-        console.log("Window focused, refreshing conversations...");
+        console.log("[FOCUS] Window focused, refreshing conversations...");
         setRefreshFlag(prev => !prev);
       }
     };
@@ -127,10 +132,10 @@ export default function Chat() {
     // ✅ Chỉ polling khi page đang visible
     pollingInterval.current = setInterval(() => {
       if (isPageVisible.current && !isSearching) {
-        console.log("Auto-refresh conversations (polling)...");
+        console.log("[POLLING] Auto-refresh conversations...");
         setRefreshFlag(prev => !prev);
       }
-    }, 1000); // 10 giây
+    }, 10000); // 10 giây
 
     return () => {
       if (pollingInterval.current) {
@@ -148,9 +153,9 @@ export default function Chat() {
         try {
           const { data } = await axios.get(`${allConversationalUsersRoute}/${currentUser._id}`);
           setContacts(data);
-          console.log("Conversations loaded:", data.length);
+          console.log("[API] Conversations loaded:", data.length, "users");
         } catch (error) {
-          console.error("Error loading conversations:", error);
+          console.error("[API] Error loading conversations:", error);
         }
       } else {
         navigate("/setAvatar");
@@ -172,22 +177,28 @@ export default function Chat() {
     try {
       const { data } = await axios.get(`${searchUserRoute}?username=${query}&userId=${currentUser._id}`);
       setSearchResults(data);
+      console.log("[SEARCH] Found", data.length, "users");
     } catch (error) {
-      console.error("Error searching users:", error);
+      console.error("[SEARCH] Error searching users:", error);
       setSearchResults([]);
     }
   };
 
   // 8. Chuyển chat
   const handleChatChange = (chat) => {
+    console.log("[CHAT] Switching to chat with:", chat.username);
     setCurrentChat(chat);
-    setIsSearching(false);
-    setSearchResults([]);
+    // ✅ Không tắt search mode ngay khi chọn chat, để user có thể chat với người mới
+    // setIsSearching(false);
+    // setSearchResults([]);
   };
 
   // 9. Handler khi gửi tin nhắn thành công
   const handleMessageSent = () => {
-    console.log("Message sent, triggering refresh");
+    console.log("[MESSAGE] Message sent, triggering refresh");
+    // ✅ Tắt search mode sau khi gửi tin nhắn
+    setIsSearching(false);
+    setSearchResults([]);
     setRefreshFlag(prev => !prev);
   };
 

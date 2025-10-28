@@ -187,14 +187,60 @@ const EmojiPanel = styled.div`
   .EmojiPickerReact {
     --epr-emoji-size: 24px;
     --epr-category-navigation-button-size: 28px;
-    --epr-search-input-bg-color: transparent;
-    --epr-bg-color: #eeecf8ff;
-    --epr-text-color: #c51111ff;
+    --epr-bg-color: #14131bff !important;  /* Màu nền tối */
+    --epr-category-label-bg-color: #0a0720 !important;  /* Màu nền category */
+    --epr-search-input-bg-color: rgba(255, 255, 255, 0.08) !important;  /* Màu nền search */
+    --epr-text-color: #ffffff !important;  /* Màu chữ trắng */
+    --epr-highlight-color: #9a86f3 !important;  /* Màu highlight */
+    --epr-hover-bg-color: rgba(255, 255, 255, 0.1) !important;  /* Màu hover */
+    --epr-picker-border-color: transparent !important;
     border: none !important;
   }
+  
+  .EmojiPickerReact .epr-category-nav {
+    display: flex !important;
+    flex-wrap: nowrap !important;
+    gap: 4px !important;
+    padding: 8px !important;
+    background-color: #0a0720 !important;
+    overflow-x: auto !important;
+    overflow-y: hidden !important;
+  }
+    .EmojiPickerReact .epr-category-nav button {
+    flex-shrink: 0 !important;
+    width: 32px !important;
+    height: 32px !important;
+    min-width: 32px !important;
+    padding: 4px !important;
+    margin: 0 !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+  }
+
+  .EmojiPickerReact .epr-category-nav svg {
+    width: 20px !important;
+    height: 20px !important;
+  }
+
   .EmojiPickerReact .epr-search-container input {
-    color: var(--text);
-    border: 1px solid var(--accent);
+    color: #ffffff !important;
+    background-color: rgba(255, 255, 255, 0.08) !important;
+    border: 1px solid rgba(255, 255, 255, 0.15) !important;
+    border-radius: 8px;
+  }
+  
+  .EmojiPickerReact .epr-search-container input::placeholder {
+    color: #bdbdd3 !important;
+  }
+  
+  .EmojiPickerReact .epr-emoji-category-label {
+    color: #ffffff !important;
+    background-color: #525159ff !important;
+  }
+  
+  .EmojiPickerReact button:hover {
+    background-color: rgba(255, 255, 255, 0.1) !important;
   }
 `;
 

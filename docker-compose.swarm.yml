@@ -24,14 +24,15 @@ services:
       - "6379:6379"
     deploy:
       replicas: 1
+      restart_policy:
+        condition: on-failure
 
   database:
-    image: mongo:5.0  # Use stable version instead of latest
+    image: mongo:5.0
     networks:
       - chat_network
     ports:
       - "27017:27017"
-    # Remove volumes section for Swarm on Windows
     environment:
       MONGO_INITDB_ROOT_USERNAME: chatuser
       MONGO_INITDB_ROOT_PASSWORD: chatpassword
@@ -82,19 +83,26 @@ services:
       - backend
     deploy:
       replicas: 1
+      restart_policy:
+        condition: on-failure
 
   frontend:
     image: chat-frontend:latest
     networks:
       - chat_network
     ports:
-      - "3000:3000"
+      - "3000:80"  # ✅ QUAN TRỌNG: 80 vì Nginx trong container
     depends_on:
       - nginx
     environment:
       VITE_API_URL: http://localhost:5000
     deploy:
       replicas: 2
+      restart_policy:
+        condition: on-failure
+      update_config:
+        parallelism: 1
+        delay: 10s
 
 networks:
   chat_network:
