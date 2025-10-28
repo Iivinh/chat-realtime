@@ -28,15 +28,37 @@ export default function ChatContainer({ currentChat, socket, onMessageSent }) {
     fetchMessages();
   }, [currentChat]);
 
+  // useEffect(() => {
+  //   const getCurrentChat = async () => {
+  //     if (currentChat) {
+  //       await JSON.parse(
+  //         localStorage.getItem(import.meta.env.VITE_LOCALHOST_KEY)
+  //       )._id;
+  //     }
+  //   };
+  //   getCurrentChat();
+  // }, [currentChat]);
   useEffect(() => {
-    const getCurrentChat = async () => {
-      if (currentChat) {
-        await JSON.parse(
+    if (socket.current && currentChat) {
+      const handleMessage = async (msg) => {
+        // ✅ Lấy currentUser
+        const userData = await JSON.parse(
           localStorage.getItem(import.meta.env.VITE_LOCALHOST_KEY)
-        )._id;
-      }
-    };
-    getCurrentChat();
+        );
+        
+        // ✅ Logic: Tin nhắn msg-recieve chỉ được gửi cho NGƯỜI NHẬN
+        // Vậy người nhận tin = userData._id
+        // Người gửi tin = currentChat._id (người đang chat với mình)
+        // => Chỉ nhận tin khi đang mở chat với người đó
+        setArrivalMessage({ fromSelf: false, message: msg });
+      };
+      
+      socket.current.on("msg-recieve", handleMessage);
+      
+      return () => {
+        socket.current.off("msg-recieve", handleMessage);
+      };
+    }
   }, [currentChat]);
 
   const handleSendMsg = async (msg) => {
@@ -63,13 +85,35 @@ export default function ChatContainer({ currentChat, socket, onMessageSent }) {
     setMessages(msgs);
   };
 
+  // useEffect(() => {
+  //   if (socket.current) {
+  //     socket.current.on("msg-recieve", (msg) => {
+  //       setArrivalMessage({ fromSelf: false, message: msg });
+  //     });
+  //   }
+  // }, []);
   useEffect(() => {
-    if (socket.current) {
-      socket.current.on("msg-recieve", (msg) => {
-        setArrivalMessage({ fromSelf: false, message: msg });
-      });
+    if (socket.current && currentChat) {
+      const handleMessage = (data) => {
+        // ✅ Backend giờ gửi object {msg, from, to}
+        const messageText = typeof data === 'string' ? data : data.msg;
+        const senderId = typeof data === 'object' ? data.from : null;
+        
+        // ✅ CHỈ NHẬN NẾU TIN NHẮN TỪ NGƯỜI ĐANG CHAT
+        if (!senderId || senderId === currentChat._id) {
+          setArrivalMessage({ fromSelf: false, message: messageText });
+        } else {
+          console.log(`[FILTER] Ignored message from ${senderId}, current chat is ${currentChat._id}`);
+        }
+      };
+      
+      socket.current.on("msg-recieve", handleMessage);
+      
+      return () => {
+        socket.current.off("msg-recieve", handleMessage);
+      };
     }
-  }, []);
+  }, [currentChat]);
 
   useEffect(() => {
     arrivalMessage && setMessages((prev) => [...prev, arrivalMessage]);

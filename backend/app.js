@@ -155,50 +155,43 @@ io.on("connection", (socket) => {
     console.log(`User ${userId} added with socket ${socket.id}`);
   });
 
-  // ✅ XỬ LÍ GỬI TIN NHẮN - Đã sửa để emit đầy đủ
+  // ✅ XỬ LÍ GỬI TIN NHẮN - Đã sửa để emit đầy đủ và đồng bộ cho cả 2 phía
   socket.on("send-msg", async (data) => {
-    // 1. Gửi tin nhắn real-time (ĐỒNG BỘ) - Xử lý bởi Redis Adapter
     const { to, from, msg } = data;
-    console.log(`Attempting to send message to user ID: ${to}`);
+    console.log(`[SEND-MSG] From: ${from}, To: ${to}, Message: ${msg}`);
+    
+    // 1. Lấy socket ID của cả người nhận và người gửi
     const recipientSocketId = await redisClient.hget('userSocketMap', to);
-    console.log(`Lookup result for ${to}: Socket ID is ${recipientSocketId}`);
+    const senderSocketId = await redisClient.hget('userSocketMap', from);
+    
+    console.log(`[SOCKET-LOOKUP] Recipient ${to} -> ${recipientSocketId}, Sender ${from} -> ${senderSocketId}`);
+    
+    // 2. Gửi tin nhắn cho người nhận (nếu online)
     if (recipientSocketId) {
-      io.to(recipientSocketId).emit("msg-recieve", msg);
+      io.to(recipientSocketId).emit("msg-recieve", {
+        message: msg,
+        from: from,
+        to: to
+      });
       io.to(recipientSocketId).emit("update-conversations");
-      console.log(`Message and update signal sent to ${recipientSocketId}`);
+      console.log(`[EMIT] Message and update sent to recipient ${recipientSocketId}`);
     } else {
-      console.log(`User ${to} is offline`);
+      console.log(`[OFFLINE] User ${to} is offline`);
     }
-    // 2. 🔵 Gửi tác vụ ghi lịch sử BẤT ĐỒNG BỘ - Qua RabbitMQ
+    
+    // 3. ✅ GỬI UPDATE CHO NGƯỜI GỬI (để cập nhật lastMessage của người gửi)
+    if (senderSocketId) {
+      io.to(senderSocketId).emit("update-conversations");
+      console.log(`[EMIT] Update signal sent to sender ${senderSocketId}`);
+    }
+    
+    // 4. 🔵 Gửi tác vụ ghi lịch sử BẤT ĐỒNG BỘ - Qua RabbitMQ
     if (rabbitmqChannel) {
       const message = Buffer.from(JSON.stringify(data));
-      // persistent: true đảm bảo tin nhắn không bị mất (RESILIENCE)
       rabbitmqChannel.sendToQueue('chat_history_queue', message, { persistent: true });
-      console.log(`Task sent to RabbitMQ for user ${from}`);
+      console.log(`[RABBITMQ] Task sent to queue for user ${from}`);
     }
-    socket.emit("update-conversations");
   });
-
-  // const { to, from, msg } = data;
-  // const recipientSocketId = onlineUsers.get(to);
-
-  // console.log(`Message from ${from} to ${to}: ${msg}`);
-  // console.log(`Recipient socket ID: ${recipientSocketId}`);
-
-  // if (recipientSocketId) {
-  //   // ✅ 1. GỬI TIN NHẮN CHO NGƯỜI NHẬN
-  //   socket.to(recipientSocketId).emit("msg-recieve", msg);
-
-  //   // ✅ 2. BẮN TÍN HIỆU CẬP NHẬT DANH SÁCH CONVERSATION CHO NGƯỜI NHẬN
-  //   socket.to(recipientSocketId).emit("update-conversations");
-
-  //   console.log(`Message and update signal sent to ${recipientSocketId}`);
-  // } else {
-  //   console.log(`User ${to} is offline`);
-  // }
-
-  // // ✅ 3. BẮN TÍN HIỆU CẬP NHẬT CHO NGƯỜI GỬI (để cập nhật lastMessage)
-  // socket.emit("update-conversations");
 
   socket.on("disconnect", async () => {
     const socketId = socket.id;
@@ -216,18 +209,5 @@ io.on("connection", (socket) => {
     } else {
       console.log(`Disconnected socket ${socketId} was not associated with a user.`);
     }
-    // console.log(`User disconnected: ${socket.id}`);
-    // // Xóa user khỏi map khi disconnect
-    // for (let [userId, socketId] of onlineUsers.entries()) {
-    //   if (socketId === socket.id) {
-    //     onlineUsers.delete(userId);
-    //     console.log(`Removed user ${userId} from online users`);
-    //     break;
-    //   }
-    // }
   });
 });
-
-// server.listen(PORT, () =>
-//   console.log(`Server started on ${PORT}`)
-// );
