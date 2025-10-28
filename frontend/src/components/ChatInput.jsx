@@ -188,8 +188,8 @@ const EmojiPanel = styled.div`
     --epr-emoji-size: 24px;
     --epr-category-navigation-button-size: 28px;
     --epr-search-input-bg-color: transparent;
-    --epr-bg-color: #080420;
-    --epr-text-color: #ffffff;
+    --epr-bg-color: #eeecf8ff;
+    --epr-text-color: #c51111ff;
     border: none !important;
   }
   .EmojiPickerReact .epr-search-container input {
