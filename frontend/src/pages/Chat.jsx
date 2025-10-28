@@ -18,95 +18,148 @@ export default function Chat() {
   const [isSearching, setIsSearching] = useState(false);
   const [searchResults, setSearchResults] = useState([]);
   
-  // ✅ Thêm ref để track visibility
   const isPageVisible = useRef(true);
   const pollingInterval = useRef(null);
+  const isRefreshing = useRef(false);
+  const reconnectAttempts = useRef(0);
 
   // 1. Kiểm tra đăng nhập
   useEffect(() => {
     const checkUser = async () => {
-      if (!localStorage.getItem(import.meta.env.VITE_LOCALHOST_KEY)) {
+      const storedData = localStorage.getItem(import.meta.env.VITE_LOCALHOST_KEY);
+      
+      if (!storedData) {
         navigate("/login");
-      } else {
-        const storedData = localStorage.getItem(import.meta.env.VITE_LOCALHOST_KEY);
-        if (storedData) {
-          setCurrentUser(await JSON.parse(storedData));
-        } else {
-          navigate("/login");
-        }
+        return;
+      }
+      
+      try {
+        const userData = JSON.parse(storedData);
+        setCurrentUser(userData);
+        console.log("[USER] Logged in as:", userData.username);
+      } catch (error) {
+        console.error("[USER] Parse error:", error);
+        navigate("/login");
       }
     };
+    
     checkUser();
   }, [navigate]);
 
-  // 2. Khởi tạo Socket
+  // 2. Khởi tạo Socket với reconnection handling
   useEffect(() => {
-    if (currentUser) {
-      socket.current = io(host, {
-        transports: ['websocket', 'polling'],
-        reconnection: true,
-        reconnectionAttempts: 5,
-        reconnectionDelay: 1000,
-      });
-      
-      socket.current.emit("add-user", currentUser._id);
-      console.log("[SOCKET] Connected and user added:", currentUser._id);
+    if (!currentUser) return;
 
-      return () => {
-        if (socket.current) {
-          socket.current.disconnect();
-          console.log("[SOCKET] Disconnected");
-        }
-      };
-    }
+    console.log("[SOCKET] Initializing connection...");
+    
+    socket.current = io(host, {
+      transports: ['websocket', 'polling'],
+      reconnection: true,
+      reconnectionAttempts: Infinity, // ✅ Không giới hạn reconnect
+      reconnectionDelay: 1000,
+      reconnectionDelayMax: 5000,
+      timeout: 20000,
+    });
+
+    // ✅ Connection event handlers
+    socket.current.on("connect", () => {
+      console.log("[SOCKET] ✅ Connected:", socket.current.id);
+      reconnectAttempts.current = 0;
+      
+      // ✅ Re-register user khi reconnect
+      socket.current.emit("add-user", currentUser._id);
+      console.log("[SOCKET] User registered:", currentUser._id);
+    });
+
+    socket.current.on("connect_error", (error) => {
+      console.error("[SOCKET] ❌ Connection error:", error.message);
+      reconnectAttempts.current++;
+    });
+
+    socket.current.on("disconnect", (reason) => {
+      console.warn("[SOCKET] ⚠️ Disconnected:", reason);
+      
+      // ✅ Auto reconnect cho một số trường hợp
+      if (reason === "io server disconnect") {
+        console.log("[SOCKET] Server disconnected, reconnecting...");
+        socket.current.connect();
+      }
+    });
+
+    socket.current.on("reconnect", (attemptNumber) => {
+      console.log(`[SOCKET] 🔄 Reconnected after ${attemptNumber} attempts`);
+      socket.current.emit("add-user", currentUser._id);
+    });
+
+    socket.current.on("reconnect_attempt", (attemptNumber) => {
+      console.log(`[SOCKET] 🔄 Reconnecting... attempt ${attemptNumber}`);
+    });
+
+    socket.current.on("reconnect_failed", () => {
+      console.error("[SOCKET] ❌ Reconnection failed");
+    });
+
+    // ✅ Emit add-user ngay lập tức
+    socket.current.emit("add-user", currentUser._id);
+
+    return () => {
+      console.log("[SOCKET] Cleaning up connection");
+      if (socket.current) {
+        socket.current.removeAllListeners();
+        socket.current.disconnect();
+      }
+    };
   }, [currentUser]);
 
-  // ✅ 3. LẮNG NGHE CẬP NHẬT TỪ SOCKET (Khi đang mở app)
+  // ✅ 3. LẮNG NGHE CẬP NHẬT TỪ SOCKET
   useEffect(() => {
     if (!socket.current) return;
 
-    const handleMessageReceive = (msg) => {
-      console.log("[SOCKET] New message received:", msg);
-      // ✅ Tắt search mode khi nhận tin nhắn mới
-      setIsSearching(false);
-      setSearchResults([]);
-      // Trigger refresh để load lại danh sách conversations
-      setRefreshFlag(prev => !prev);
-    };
-
     const handleConversationUpdate = () => {
-      console.log("[SOCKET] Conversation update signal received");
-      // ✅ Tắt search mode và refresh
-      setIsSearching(false);
-      setSearchResults([]);
-      setRefreshFlag(prev => !prev);
+      console.log("[SOCKET] 📨 Conversation update signal received");
+      
+      if (!isRefreshing.current) {
+        setIsSearching(false);
+        setSearchResults([]);
+        
+        // ✅ Small delay để backend kịp process
+        setTimeout(() => {
+          setRefreshFlag(prev => !prev);
+        }, 200);
+      }
     };
 
-    socket.current.on("msg-recieve", handleMessageReceive);
     socket.current.on("update-conversations", handleConversationUpdate);
 
     return () => {
       if (socket.current) {
-        socket.current.off("msg-recieve", handleMessageReceive);
         socket.current.off("update-conversations", handleConversationUpdate);
       }
     };
   }, [socket]);
 
-  // ✅ 4. THEO DÕI PAGE VISIBILITY (Phát hiện khi user quay lại tab)
+  // ✅ 4. THEO DÕI PAGE VISIBILITY
   useEffect(() => {
     const handleVisibilityChange = () => {
+      const wasHidden = !isPageVisible.current;
       isPageVisible.current = !document.hidden;
       
-      if (!document.hidden && currentUser) {
-        console.log("[VISIBILITY] Page visible again, refreshing conversations...");
+      if (wasHidden && !document.hidden && currentUser && !isRefreshing.current) {
+        console.log("[VISIBILITY] 👀 Page visible again, refreshing...");
+        
+        // ✅ Check socket connection khi quay lại
+        if (socket.current && !socket.current.connected) {
+          console.log("[VISIBILITY] Socket disconnected, reconnecting...");
+          socket.current.connect();
+        }
+        
         setRefreshFlag(prev => !prev);
       }
     };
 
     const handleFocus = () => {
-      if (currentUser) {
-        console.log("[FOCUS] Window focused, refreshing conversations...");
+      if (currentUser && !isRefreshing.current) {
+        console.log("[FOCUS] 🎯 Window focused, refreshing...");
         setRefreshFlag(prev => !prev);
       }
     };
@@ -120,22 +173,20 @@ export default function Chat() {
     };
   }, [currentUser]);
 
-  // ✅ 5. POLLING - TỰ ĐỘNG KIỂM TRA MỖI 10 GIÂY (Backup cho socket)
+  // ✅ 5. POLLING với thời gian hợp lý
   useEffect(() => {
     if (!currentUser || isSearching) return;
 
-    // Clear interval cũ nếu có
     if (pollingInterval.current) {
       clearInterval(pollingInterval.current);
     }
 
-    // ✅ Chỉ polling khi page đang visible
     pollingInterval.current = setInterval(() => {
-      if (isPageVisible.current && !isSearching) {
-        console.log("[POLLING] Auto-refresh conversations...");
+      if (isPageVisible.current && !isSearching && !isRefreshing.current) {
+        console.log("[POLLING] ⏰ Auto-refresh conversations...");
         setRefreshFlag(prev => !prev);
       }
-    }, 10000); // 10 giây
+    }, 5000); // 30 giây
 
     return () => {
       if (pollingInterval.current) {
@@ -144,21 +195,42 @@ export default function Chat() {
     };
   }, [currentUser, isSearching]);
 
-  // 6. Lấy danh sách conversations
+  // ✅ 6. Lấy danh sách conversations
   useEffect(() => {
     const fetchConversations = async () => {
-      if (!currentUser) return;
+      if (!currentUser || isRefreshing.current) return;
 
-      if (currentUser.isAvatarImageSet) {
-        try {
-          const { data } = await axios.get(`${allConversationalUsersRoute}/${currentUser._id}`);
-          setContacts(data);
-          console.log("[API] Conversations loaded:", data.length, "users");
-        } catch (error) {
-          console.error("[API] Error loading conversations:", error);
-        }
-      } else {
+      if (!currentUser.isAvatarImageSet) {
         navigate("/setAvatar");
+        return;
+      }
+
+      isRefreshing.current = true;
+      console.log("[API] 🔄 Fetching conversations...");
+      
+      try {
+        const { data } = await axios.get(
+          `${allConversationalUsersRoute}/${currentUser._id}`,
+          { timeout: 10000 } // ✅ Add timeout
+        );
+        
+        setContacts(data);
+        console.log("[API] ✅ Loaded", data.length, "conversations");
+        
+      } catch (error) {
+        console.error("[API] ❌ Error:", error.message);
+        
+        // ✅ Retry logic
+        if (error.code === 'ECONNABORTED' || error.message.includes('timeout')) {
+          console.log("[API] Timeout, retrying in 2s...");
+          setTimeout(() => {
+            setRefreshFlag(prev => !prev);
+          }, 2000);
+        }
+      } finally {
+        setTimeout(() => {
+          isRefreshing.current = false;
+        }, 500);
       }
     };
 
@@ -174,32 +246,39 @@ export default function Chat() {
     }
 
     setIsSearching(true);
+    console.log("[SEARCH] 🔍 Searching for:", query);
+    
     try {
-      const { data } = await axios.get(`${searchUserRoute}?username=${query}&userId=${currentUser._id}`);
+      const { data } = await axios.get(
+        `${searchUserRoute}?username=${query}&userId=${currentUser._id}`,
+        { timeout: 5000 }
+      );
       setSearchResults(data);
-      console.log("[SEARCH] Found", data.length, "users");
+      console.log("[SEARCH] ✅ Found", data.length, "users");
     } catch (error) {
-      console.error("[SEARCH] Error searching users:", error);
+      console.error("[SEARCH] ❌ Error:", error.message);
       setSearchResults([]);
     }
   };
 
   // 8. Chuyển chat
   const handleChatChange = (chat) => {
-    console.log("[CHAT] Switching to chat with:", chat.username);
+    console.log("[CHAT] 💬 Switching to:", chat.username);
     setCurrentChat(chat);
-    // ✅ Không tắt search mode ngay khi chọn chat, để user có thể chat với người mới
-    // setIsSearching(false);
-    // setSearchResults([]);
   };
 
-  // 9. Handler khi gửi tin nhắn thành công
+  // ✅ 9. Handler khi gửi tin nhắn
   const handleMessageSent = () => {
-    console.log("[MESSAGE] Message sent, triggering refresh");
-    // ✅ Tắt search mode sau khi gửi tin nhắn
+    console.log("[MESSAGE] ✉️ Message sent");
+    
     setIsSearching(false);
     setSearchResults([]);
-    setRefreshFlag(prev => !prev);
+    
+    if (!isRefreshing.current) {
+      setTimeout(() => {
+        setRefreshFlag(prev => !prev);
+      }, 500);
+    }
   };
 
   return (

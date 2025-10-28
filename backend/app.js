@@ -135,36 +135,37 @@ io.on("connection", (socket) => {
     const { to, from, msg } = data;
     console.log(`[SEND-MSG] From: ${from}, To: ${to}, Message: ${msg}`);
     
-    // 1. Lấy socket ID của cả người nhận và người gửi
+    // 1. Lấy socket ID của người nhận và người gửi
     const recipientSocketId = await redisClient.hget('userSocketMap', to);
     const senderSocketId = await redisClient.hget('userSocketMap', from);
     
     console.log(`[SOCKET-LOOKUP] Recipient ${to} -> ${recipientSocketId}, Sender ${from} -> ${senderSocketId}`);
     
-    // 2. Gửi tin nhắn cho người nhận (nếu online)
+    // 2. ✅ Gửi tin nhắn cho người nhận với ĐẦY ĐỦ THÔNG TIN
     if (recipientSocketId) {
       io.to(recipientSocketId).emit("msg-recieve", {
         message: msg,
+        msg: msg,  // Backward compatibility
         from: from,
         to: to
       });
       io.to(recipientSocketId).emit("update-conversations");
-      console.log(`[EMIT] Message and update sent to recipient ${recipientSocketId}`);
+      console.log(`[EMIT] Message sent to recipient ${recipientSocketId} from ${from}`);
     } else {
       console.log(`[OFFLINE] User ${to} is offline`);
     }
     
-    // 3. ✅ GỬI UPDATE CHO NGƯỜI GỬI (để cập nhật lastMessage của người gửi)
+    // 3. Gửi update cho người gửi
     if (senderSocketId) {
       io.to(senderSocketId).emit("update-conversations");
       console.log(`[EMIT] Update signal sent to sender ${senderSocketId}`);
     }
     
-    // 4. 🔵 Gửi tác vụ ghi lịch sử BẤT ĐỒNG BỘ - Qua RabbitMQ
+    // 4. Gửi task ghi lịch sử qua RabbitMQ
     if (rabbitmqChannel) {
       const message = Buffer.from(JSON.stringify(data));
       rabbitmqChannel.sendToQueue('chat_history_queue', message, { persistent: true });
-      console.log(`[RABBITMQ] Task sent to queue for user ${from}`);
+      console.log(`[RABBITMQ] Task sent to queue`);
     }
   });
 

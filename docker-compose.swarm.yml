@@ -22,6 +22,8 @@ services:
       - chat_network
     ports:
       - "6379:6379"
+    volumes:
+      - redis_data:/data
     deploy:
       replicas: 1
       restart_policy:
@@ -33,6 +35,8 @@ services:
       - chat_network
     ports:
       - "27017:27017"
+    volumes:
+      - mongo_data:/data/db
     environment:
       MONGO_INITDB_ROOT_USERNAME: chatuser
       MONGO_INITDB_ROOT_PASSWORD: chatpassword
@@ -110,4 +114,7 @@ networks:
     attachable: true
 
 volumes:
-  mongo_data:
+  mongo_data:  # ✅ Khai báo volume
+    driver: local
+  redis_data:  # ✅ Khai báo volume cho Redis
+    driver: local

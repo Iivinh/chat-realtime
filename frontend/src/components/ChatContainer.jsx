@@ -10,118 +10,170 @@ export default function ChatContainer({ currentChat, socket, onMessageSent }) {
   const [messages, setMessages] = useState([]);
   const scrollRef = useRef();
   const [arrivalMessage, setArrivalMessage] = useState(null);
+  const currentChatRef = useRef(currentChat);
+  const isMountedRef = useRef(true);
 
+  // ✅ Update refs
+  useEffect(() => {
+    currentChatRef.current = currentChat;
+    isMountedRef.current = true;
+    
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, [currentChat]);
+
+  // ✅ Fetch messages when chat changes
   useEffect(() => {
     const fetchMessages = async () => {
       const storedData = localStorage.getItem(import.meta.env.VITE_LOCALHOST_KEY);
 
       if (currentChat && storedData) {
-        const data = await JSON.parse(storedData);
+        try {
+          const data = JSON.parse(storedData);
 
-        const response = await axios.post(recieveMessageRoute, {
-          from: data._id,
-          to: currentChat._id,
-        });
-        setMessages(response.data);
+          const response = await axios.post(recieveMessageRoute, {
+            from: data._id,
+            to: currentChat._id,
+          });
+          
+          if (isMountedRef.current) {
+            setMessages(response.data);
+          }
+        } catch (error) {
+          console.error("[FETCH MESSAGES] Error:", error);
+          if (isMountedRef.current) {
+            setMessages([]);
+          }
+        }
       }
     };
+    
+    // ✅ Reset messages khi chuyển chat
+    setMessages([]);
+    setArrivalMessage(null);
+    
     fetchMessages();
   }, [currentChat]);
 
-  // useEffect(() => {
-  //   const getCurrentChat = async () => {
-  //     if (currentChat) {
-  //       await JSON.parse(
-  //         localStorage.getItem(import.meta.env.VITE_LOCALHOST_KEY)
-  //       )._id;
-  //     }
-  //   };
-  //   getCurrentChat();
-  // }, [currentChat]);
+  // ✅ SINGLE useEffect để lắng nghe tin nhắn mới
   useEffect(() => {
-    if (socket.current && currentChat) {
-      const handleMessage = async (msg) => {
-        // ✅ Lấy currentUser
-        const userData = await JSON.parse(
-          localStorage.getItem(import.meta.env.VITE_LOCALHOST_KEY)
-        );
-        
-        // ✅ Logic: Tin nhắn msg-recieve chỉ được gửi cho NGƯỜI NHẬN
-        // Vậy người nhận tin = userData._id
-        // Người gửi tin = currentChat._id (người đang chat với mình)
-        // => Chỉ nhận tin khi đang mở chat với người đó
-        setArrivalMessage({ fromSelf: false, message: msg });
-      };
-      
-      socket.current.on("msg-recieve", handleMessage);
-      
-      return () => {
-        socket.current.off("msg-recieve", handleMessage);
-      };
+    if (!socket.current || !currentChat) {
+      console.log("[SOCKET LISTENER] Not ready - socket:", !!socket.current, "chat:", !!currentChat);
+      return;
     }
-  }, [currentChat]);
 
-  const handleSendMsg = async (msg) => {
-    const data = await JSON.parse(
-      localStorage.getItem(import.meta.env.VITE_LOCALHOST_KEY)
-    );
-    socket.current.emit("send-msg", {
-      to: currentChat._id,
-      from: data._id,
-      msg,
-    });
-    await axios.post(sendMessageRoute, {
-      from: data._id,
-      to: currentChat._id,
-      message: msg,
-    });
+    console.log("[SOCKET LISTENER] Setting up for chat:", currentChat.username);
 
-    if (onMessageSent) {
-      onMessageSent();
-    }
-    
-    const msgs = [...messages];
-    msgs.push({ fromSelf: true, message: msg });
-    setMessages(msgs);
-  };
-
-  // useEffect(() => {
-  //   if (socket.current) {
-  //     socket.current.on("msg-recieve", (msg) => {
-  //       setArrivalMessage({ fromSelf: false, message: msg });
-  //     });
-  //   }
-  // }, []);
-  useEffect(() => {
-    if (socket.current && currentChat) {
-      const handleMessage = (data) => {
-        // ✅ Backend giờ gửi object {msg, from, to}
-        const messageText = typeof data === 'string' ? data : data.msg;
-        const senderId = typeof data === 'object' ? data.from : null;
+    const handleMessage = (data) => {
+      console.log("[MSG-RECEIVE] Raw data:", data);
+      console.log("[MSG-RECEIVE] Current chat:", currentChatRef.current?.username);
+      
+      // ✅ Xử lý cả object và string
+      const messageText = data.message || data.msg || (typeof data === 'string' ? data : '');
+      const senderId = data.from;
+      
+      console.log("[MSG-RECEIVE] Message:", messageText, "From:", senderId);
+      
+      // ✅ CHỈ NHẬN TIN NHẮN TỪ NGƯỜI ĐANG CHAT
+      if (senderId && currentChatRef.current && senderId === currentChatRef.current._id) {
+        console.log("[MSG-RECEIVE] ✅ Adding message to current chat");
         
-        // ✅ CHỈ NHẬN NẾU TIN NHẮN TỪ NGƯỜI ĐANG CHAT
-        if (!senderId || senderId === currentChat._id) {
-          setArrivalMessage({ fromSelf: false, message: messageText });
-        } else {
-          console.log(`[FILTER] Ignored message from ${senderId}, current chat is ${currentChat._id}`);
+        if (isMountedRef.current) {
+          setArrivalMessage({ 
+            fromSelf: false, 
+            message: messageText 
+          });
         }
-      };
-      
-      socket.current.on("msg-recieve", handleMessage);
-      
-      return () => {
-        socket.current.off("msg-recieve", handleMessage);
-      };
-    }
-  }, [currentChat]);
+      } else {
+        console.log(`[MSG-RECEIVE] ❌ Ignored - from ${senderId}, current chat is ${currentChatRef.current?._id}`);
+      }
+    };
 
+    const handleError = (error) => {
+      console.error("[SOCKET] Error:", error);
+    };
+
+    const handleDisconnect = (reason) => {
+      console.warn("[SOCKET] Disconnected:", reason);
+    };
+
+    const handleConnect = () => {
+      console.log("[SOCKET] Connected");
+    };
+    
+    socket.current.on("msg-recieve", handleMessage);
+    socket.current.on("error", handleError);
+    socket.current.on("disconnect", handleDisconnect);
+    socket.current.on("connect", handleConnect);
+    
+    return () => {
+      console.log("[SOCKET LISTENER] Cleaning up for chat:", currentChat.username);
+      if (socket.current) {
+        socket.current.off("msg-recieve", handleMessage);
+        socket.current.off("error", handleError);
+        socket.current.off("disconnect", handleDisconnect);
+        socket.current.off("connect", handleConnect);
+      }
+    };
+  }, [socket, currentChat]);
+
+  // ✅ Append arrival message to messages list
   useEffect(() => {
-    arrivalMessage && setMessages((prev) => [...prev, arrivalMessage]);
+    if (arrivalMessage && isMountedRef.current) {
+      console.log("[ARRIVAL MESSAGE] Adding to list:", arrivalMessage.message);
+      setMessages((prev) => [...prev, arrivalMessage]);
+      setArrivalMessage(null);
+    }
   }, [arrivalMessage]);
 
+  // ✅ Auto scroll to bottom
   useEffect(() => {
     scrollRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
+
+  const handleSendMsg = async (msg) => {
+    try {
+      const data = JSON.parse(
+        localStorage.getItem(import.meta.env.VITE_LOCALHOST_KEY)
+      );
+      
+      console.log("[SEND MSG] Sending to:", currentChat.username);
+      
+      // ✅ Emit socket event
+      if (socket.current && socket.current.connected) {
+        socket.current.emit("send-msg", {
+          to: currentChat._id,
+          from: data._id,
+          msg,
+        });
+        console.log("[SEND MSG] Socket emitted");
+      } else {
+        console.error("[SEND MSG] Socket not connected!");
+      }
+      
+      // ✅ Save to database
+      await axios.post(sendMessageRoute, {
+        from: data._id,
+        to: currentChat._id,
+        message: msg,
+      });
+      console.log("[SEND MSG] Saved to database");
+
+      // ✅ Notify parent component
+      if (onMessageSent) {
+        onMessageSent();
+      }
+      
+      // ✅ Add message to local state
+      if (isMountedRef.current) {
+        setMessages((prev) => [...prev, { fromSelf: true, message: msg }]);
+      }
+      
+    } catch (error) {
+      console.error("[SEND MSG] Error:", error);
+    }
+  };
 
   return (
     <Container>
@@ -140,12 +192,11 @@ export default function ChatContainer({ currentChat, socket, onMessageSent }) {
         <Logout />
       </div>
       <div className="chat-messages">
-        {messages.map((message) => {
+        {messages.map((message, index) => {
           return (
-            <div ref={scrollRef} key={uuidv4()}>
+            <div ref={scrollRef} key={`msg-${currentChat._id}-${index}`}>
               <div
-                className={`message ${message.fromSelf ? "sended" : "recieved"
-                  }`}
+                className={`message ${message.fromSelf ? "sended" : "recieved"}`}
               >
                 <div className="content ">
                   <p>{message.message}</p>
@@ -227,7 +278,7 @@ const Container = styled.div`
         }
         p {
           margin: 0; 
-          line-height: 1.2; /* Tối ưu hóa khoảng cách dòng */
+          line-height: 1.2;
         }
       }
     }
