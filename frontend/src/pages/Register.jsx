@@ -1,13 +1,20 @@
+// Định nghĩa component Register
 import React, { useState, useEffect } from "react";
+//Import axios để gọi API
 import axios from "axios";
+//Import styled-components để tạo CSS-in-JS
 import styled from "styled-components";
+//Import useNavigate
 import { useNavigate, Link } from "react-router-dom";
+//Import react-toastify
 import Logo from "../assets/logo.svg";
 import { ToastContainer, toast } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 import { registerRoute } from "../utils/APIRoutes";
 
+// Định nghĩa component Register
 export default function Register() {
+  // Sử dụng hook useNavigate để điều hướng trang
   const navigate = useNavigate();
   const toastOptions = {
     position: "bottom-right",
@@ -16,23 +23,24 @@ export default function Register() {
     draggable: true,
     theme: "dark",
   };
+  // State để lưu trữ giá trị form
   const [values, setValues] = useState({
     username: "",
     email: "",
     password: "",
     confirmPassword: "",
   });
-
+  // Kiểm tra nếu đã đăng nhập thì chuyển hướng về trang chính
   useEffect(() => {
     if (localStorage.getItem(import.meta.env.REACT_APP_LOCALHOST_KEY)) {
       navigate("/");
     }
   }, []);
-
+  // Xử lý thay đổi input
   const handleChange = (event) => {
     setValues({ ...values, [event.target.name]: event.target.value });
   };
-
+  // Hàm xác thực form
   const handleValidation = () => {
     const { password, confirmPassword, username, email } = values;
     if (password !== confirmPassword) {
@@ -60,7 +68,7 @@ export default function Register() {
 
     return true;
   };
-
+  // Xử lý khi submit form
   const handleSubmit = async (event) => {
     event.preventDefault();
     if (handleValidation()) {

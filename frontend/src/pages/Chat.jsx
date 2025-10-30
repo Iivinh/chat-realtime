@@ -1,14 +1,23 @@
+//import các thư viện cần thiết
 import React, { useEffect, useState, useRef } from "react";
+//import component con
 import axios from "axios";
+//import useNavigate để điều hướng trang
 import { useNavigate } from "react-router-dom";
+//import socket.io-client
 import { io } from "socket.io-client";
+//import styled-components
 import styled from "styled-components";
+//import route API
 import { allConversationalUsersRoute, searchUserRoute, host } from "../utils/APIRoutes";
+//import component
 import ChatContainer from "../components/ChatContainer";
 import Contacts from "../components/Contacts";
 import Welcome from "../components/Welcome";
 
+// Định nghĩa component Chat
 export default function Chat() {
+  // Sử dụng hook useNavigate để điều hướng trang
   const navigate = useNavigate();
   const socket = useRef();
   const [contacts, setContacts] = useState([]);
@@ -18,6 +27,7 @@ export default function Chat() {
   const [isSearching, setIsSearching] = useState(false);
   const [searchResults, setSearchResults] = useState([]);
   
+  // Refs và biến để theo dõi trạng thái kết nối và làm mới
   const isPageVisible = useRef(true);
   const pollingInterval = useRef(null);
   const isRefreshing = useRef(false);
@@ -25,9 +35,10 @@ export default function Chat() {
 
   // 1. Kiểm tra đăng nhập
   useEffect(() => {
+    // Hàm kiểm tra người dùng đã đăng nhập
     const checkUser = async () => {
       const storedData = localStorage.getItem(import.meta.env.VITE_LOCALHOST_KEY);
-      
+      // Nếu không có dữ liệu đăng nhập, chuyển hướng về trang login
       if (!storedData) {
         navigate("/login");
         return;
@@ -48,38 +59,39 @@ export default function Chat() {
 
   // 2. Khởi tạo Socket với reconnection handling
   useEffect(() => {
+    // Nếu chưa có currentUser, không khởi tạo socket
     if (!currentUser) return;
 
     console.log("[SOCKET] Initializing connection...");
-    
+    // Khởi tạo kết nối socket với tùy chọn reconnection
     socket.current = io(host, {
       transports: ['websocket', 'polling'],
       reconnection: true,
-      reconnectionAttempts: Infinity, // ✅ Không giới hạn reconnect
+      reconnectionAttempts: Infinity, //  Không giới hạn reconnect
       reconnectionDelay: 1000,
       reconnectionDelayMax: 5000,
       timeout: 20000,
     });
 
-    // ✅ Connection event handlers
+    // 3. Thiết lập các sự kiện socket
     socket.current.on("connect", () => {
-      console.log("[SOCKET] ✅ Connected:", socket.current.id);
+      console.log("[SOCKET]  Connected:", socket.current.id);
       reconnectAttempts.current = 0;
       
-      // ✅ Re-register user khi reconnect
+      // Emit add-user khi kết nối thành công
       socket.current.emit("add-user", currentUser._id);
       console.log("[SOCKET] User registered:", currentUser._id);
     });
 
     socket.current.on("connect_error", (error) => {
-      console.error("[SOCKET] ❌ Connection error:", error.message);
+      console.error("[SOCKET]  Connection error:", error.message);
       reconnectAttempts.current++;
     });
 
     socket.current.on("disconnect", (reason) => {
-      console.warn("[SOCKET] ⚠️ Disconnected:", reason);
-      
-      // ✅ Auto reconnect cho một số trường hợp
+      console.warn("[SOCKET]  Disconnected:", reason);
+
+      // Reconnect khi người dùng ngắt kết nối
       if (reason === "io server disconnect") {
         console.log("[SOCKET] Server disconnected, reconnecting...");
         socket.current.connect();
@@ -87,19 +99,19 @@ export default function Chat() {
     });
 
     socket.current.on("reconnect", (attemptNumber) => {
-      console.log(`[SOCKET] 🔄 Reconnected after ${attemptNumber} attempts`);
+      console.log(`[SOCKET]  Reconnected after ${attemptNumber} attempts`);
       socket.current.emit("add-user", currentUser._id);
     });
 
     socket.current.on("reconnect_attempt", (attemptNumber) => {
-      console.log(`[SOCKET] 🔄 Reconnecting... attempt ${attemptNumber}`);
+      console.log(`[SOCKET]  Reconnecting... attempt ${attemptNumber}`);
     });
 
     socket.current.on("reconnect_failed", () => {
-      console.error("[SOCKET] ❌ Reconnection failed");
+      console.error("[SOCKET]  Reconnection failed");
     });
 
-    // ✅ Emit add-user ngay lập tức
+    
     socket.current.emit("add-user", currentUser._id);
 
     return () => {
@@ -111,18 +123,18 @@ export default function Chat() {
     };
   }, [currentUser]);
 
-  // ✅ 3. LẮNG NGHE CẬP NHẬT TỪ SOCKET
+  // 3. LẮNG NGHE CẬP NHẬT TỪ SOCKET
   useEffect(() => {
     if (!socket.current) return;
 
     const handleConversationUpdate = () => {
-      console.log("[SOCKET] 📨 Conversation update signal received");
+      console.log("[SOCKET]  Conversation update signal received");
       
       if (!isRefreshing.current) {
         setIsSearching(false);
         setSearchResults([]);
         
-        // ✅ Small delay để backend kịp process
+        // Small delay để backend kịp process
         setTimeout(() => {
           setRefreshFlag(prev => !prev);
         }, 200);
@@ -138,16 +150,16 @@ export default function Chat() {
     };
   }, [socket]);
 
-  // ✅ 4. THEO DÕI PAGE VISIBILITY
+  // 4. THEO DÕI PAGE VISIBILITY
   useEffect(() => {
     const handleVisibilityChange = () => {
       const wasHidden = !isPageVisible.current;
       isPageVisible.current = !document.hidden;
       
       if (wasHidden && !document.hidden && currentUser && !isRefreshing.current) {
-        console.log("[VISIBILITY] 👀 Page visible again, refreshing...");
+        console.log("[VISIBILITY]  Page visible again, refreshing...");
         
-        // ✅ Check socket connection khi quay lại
+        //  Check socket connection khi quay lại
         if (socket.current && !socket.current.connected) {
           console.log("[VISIBILITY] Socket disconnected, reconnecting...");
           socket.current.connect();
@@ -159,7 +171,7 @@ export default function Chat() {
 
     const handleFocus = () => {
       if (currentUser && !isRefreshing.current) {
-        console.log("[FOCUS] 🎯 Window focused, refreshing...");
+        console.log("[FOCUS] Window focused, refreshing...");
         setRefreshFlag(prev => !prev);
       }
     };
@@ -173,7 +185,7 @@ export default function Chat() {
     };
   }, [currentUser]);
 
-  // ✅ 5. POLLING với thời gian hợp lý
+  // 5. POLLING với thời gian hợp lý
   useEffect(() => {
     if (!currentUser || isSearching) return;
 
@@ -183,7 +195,7 @@ export default function Chat() {
 
     pollingInterval.current = setInterval(() => {
       if (isPageVisible.current && !isSearching && !isRefreshing.current) {
-        console.log("[POLLING] ⏰ Auto-refresh conversations...");
+        console.log("[POLLING] Auto-refresh conversations...");
         setRefreshFlag(prev => !prev);
       }
     }, 5000); // 30 giây
@@ -195,7 +207,7 @@ export default function Chat() {
     };
   }, [currentUser, isSearching]);
 
-  // ✅ 6. Lấy danh sách conversations
+  //6. Lấy danh sách conversations
   useEffect(() => {
     const fetchConversations = async () => {
       if (!currentUser || isRefreshing.current) return;
@@ -206,21 +218,21 @@ export default function Chat() {
       }
 
       isRefreshing.current = true;
-      console.log("[API] 🔄 Fetching conversations...");
+      console.log("[API] Fetching conversations...");
       
       try {
         const { data } = await axios.get(
           `${allConversationalUsersRoute}/${currentUser._id}`,
-          { timeout: 10000 } // ✅ Add timeout
+          { timeout: 10000 } // Add timeout
         );
         
         setContacts(data);
-        console.log("[API] ✅ Loaded", data.length, "conversations");
+        console.log("[API] Loaded", data.length, "conversations");
         
       } catch (error) {
         console.error("[API] ❌ Error:", error.message);
         
-        // ✅ Retry logic
+        // Retry logic
         if (error.code === 'ECONNABORTED' || error.message.includes('timeout')) {
           console.log("[API] Timeout, retrying in 2s...");
           setTimeout(() => {
@@ -246,7 +258,7 @@ export default function Chat() {
     }
 
     setIsSearching(true);
-    console.log("[SEARCH] 🔍 Searching for:", query);
+    console.log("[SEARCH] Searching for:", query);
     
     try {
       const { data } = await axios.get(
@@ -254,22 +266,22 @@ export default function Chat() {
         { timeout: 5000 }
       );
       setSearchResults(data);
-      console.log("[SEARCH] ✅ Found", data.length, "users");
+      console.log("[SEARCH] Found", data.length, "users");
     } catch (error) {
-      console.error("[SEARCH] ❌ Error:", error.message);
+      console.error("[SEARCH] Error:", error.message);
       setSearchResults([]);
     }
   };
 
   // 8. Chuyển chat
   const handleChatChange = (chat) => {
-    console.log("[CHAT] 💬 Switching to:", chat.username);
+    console.log("[CHAT] Switching to:", chat.username);
     setCurrentChat(chat);
   };
 
-  // ✅ 9. Handler khi gửi tin nhắn
+  // 9. Handler khi gửi tin nhắn
   const handleMessageSent = () => {
-    console.log("[MESSAGE] ✉️ Message sent");
+    console.log("[MESSAGE] Message sent");
     
     setIsSearching(false);
     setSearchResults([]);

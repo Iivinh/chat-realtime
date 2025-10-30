@@ -1,3 +1,4 @@
+// ==================== IMPORTS ====================
 var createError = require('http-errors');
 var express = require('express');
 const http = require('http');
@@ -7,51 +8,66 @@ var path = require('path');
 var cookieParser = require('cookie-parser');
 var logger = require('morgan');
 
+// Socket.IO và Redis Adapter
 const { Server } = require('socket.io');
 const Redis = require('ioredis');
 const { createAdapter } = require('@socket.io/redis-adapter');
+
+// RabbitMQ client
 const amqp = require('amqplib');
+
+// Models và Routes
 const Message = require('./models/messageModel');
 var authRouter = require('./routes/auth');
 var messagesRouter = require('./routes/messages');
 
+// ==================== APP INITIALIZATION ====================
 var app = express();
 const socket = require("socket.io");
 
+// Sử dụng Morgan để log HTTP requests (dev mode)
 app.use(logger('dev'));
 
+// ==================== CORS CONFIGURATION ====================
 const allowedOrigins = ['http://localhost:3000'];
 
+// Custom CORS middleware để xử lý preflight requests
 app.use((req, res, next) => {
 
   const origin = req.headers.origin;
 
+  // Chỉ cho phép origins trong whitelist
   if (allowedOrigins.includes(origin)) {
-
     res.header('Access-Control-Allow-Origin', origin);
-    res.header('Access-Control-Allow-Credentials', 'true');
+    res.header('Access-Control-Allow-Credentials', 'true');  // Cho phép gửi cookies
   }
+
+  // Các HTTP methods được phép
   res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
 
+  // Các headers được phép
   res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization');
 
   if (req.method === 'OPTIONS') {
-
     return res.status(200).end();
-
   }
+
   next();
 });
 
+// Thêm CORS middleware chính thức
 app.use(cors({
   origin: "http://localhost:3000",
-  credentials: true // Bắt buộc nếu bạn dùng cookie/session
+  credentials: true // Cho phép gửi cookies
 }));
+
+// ==================== MIDDLEWARE SETUP ====================
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 app.use(cookieParser());
 app.use(express.static(path.join(__dirname, 'public')));
 
+// ==================== DATABASE CONNECTION ====================
 mongoose
   .connect(process.env.MONGO_URI)
   .then(() => {
@@ -62,13 +78,18 @@ mongoose
     console.log(err.message);
   });
 
+  // ==================== API ROUTES ====================
 app.get("/ping", (_req, res) => {
   return res.json({ msg: "Ping Successful" });
 });
 
+// Authentication routes (login, register, logout, etc.)
 app.use('/api/auth', authRouter);
+
+// Message routes (addmsg, getmsg)
 app.use('/api/messages', messagesRouter);
 
+// ==================== SERVER SETUP ====================
 const PORT = process.env.PORT || 5000;
 const server = http.createServer(app);
 
@@ -85,7 +106,7 @@ const io = new Server(server, {
   },
   // Thêm config cho sticky session và adapter
   transports: ['websocket', 'polling'],
-  pingInterval: 10000, // Tăng lên 10 giây (mặc định 25s)
+  pingInterval: 10000,
   pingTimeout: 5000,
 });
 
@@ -94,19 +115,21 @@ io.adapter(createAdapter(pubClient, subClient));
 // TÍCH HỢP RABBITMQ (Giao tiếp Bất đồng bộ)
 let rabbitmqChannel = null;
 
+
 const connectRabbitMQ = async () => {
   try {
+    // Kết nối tới RabbitMQ server
     const connection = await amqp.connect(process.env.RABBITMQ_URL);
     rabbitmqChannel = await connection.createChannel();
     console.log("RabbitMQ Connection Successfull");
 
     // Khai báo Queue cho việc ghi lịch sử chat bất đồng bộ
     await rabbitmqChannel.assertQueue('chat_history_queue', { durable: true });
-    // 💡 BẮT ĐẦU LẮNG NGHE HÀNG ĐỢI (CONSUME LOGIC)
+    // BẮT ĐẦU LẮNG NGHE HÀNG ĐỢI (CONSUME LOGIC)
     rabbitmqChannel.consume('chat_history_queue', async (msg) => {
       if (msg !== null) {
         try {
-          // 1. Phân tích cú pháp tin nhắn
+          // 1. Parse message content (JSON string → object)
           const data = JSON.parse(msg.content.toString());
           const { from, to, msg: messageContent } = data; // Lấy dữ liệu từ object tin nhắn gửi đi
 
@@ -134,28 +157,27 @@ const connectRabbitMQ = async () => {
   }
 };
 
+// ==================== GLOBAL VARIABLES ====================
 global.chatSocket = io;
 global.redisClient = redisClient;
-
+// ==================== START SERVER ====================
 server.listen(PORT, async () => {
   console.log(`Server started on ${PORT}`);
   await connectRabbitMQ(); // Khởi tạo RabbitMQ
 });
 
-// global.onlineUsers = new Map();
 
+// ==================== SOCKET.IO EVENT HANDLERS ====================
 io.on("connection", (socket) => {
   console.log(`User connected: ${socket.id}`);
 
   socket.on("add-user", async (userId) => {
-    // onlineUsers.set(userId, socket.id);
-    // console.log(`User ${userId} added with socket ${socket.id}`);
     await redisClient.hset('userSocketMap', userId, socket.id);
     await redisClient.hset('socketUserMap', socket.id, userId);
     console.log(`User ${userId} added with socket ${socket.id}`);
   });
 
-  // ✅ XỬ LÍ GỬI TIN NHẮN - Đã sửa để emit đầy đủ và đồng bộ cho cả 2 phía
+  // XỬ LÍ GỬI TIN NHẮN -để emit đầy đủ và đồng bộ cho cả 2 phía
   socket.on("send-msg", async (data) => {
     const { to, from, msg } = data;
     console.log(`[SEND-MSG] From: ${from}, To: ${to}, Message: ${msg}`);
@@ -166,7 +188,7 @@ io.on("connection", (socket) => {
     
     console.log(`[SOCKET-LOOKUP] Recipient ${to} -> ${recipientSocketId}, Sender ${from} -> ${senderSocketId}`);
     
-    // 2. ✅ Gửi tin nhắn cho người nhận với ĐẦY ĐỦ THÔNG TIN
+    // 2.Gửi tin nhắn cho người nhận với ĐẦY ĐỦ THÔNG TIN
     if (recipientSocketId) {
       io.to(recipientSocketId).emit("msg-recieve", {
         message: msg,
@@ -197,7 +219,7 @@ io.on("connection", (socket) => {
   socket.on("disconnect", async () => {
     const socketId = socket.id;
 
-    // 1. 💡 Tìm userId từ socketId bằng Map Ngược
+    // 1. Tìm userId từ socketId bằng Map Ngược
     const userId = await redisClient.hget('socketUserMap', socketId);
     if (userId) {
       // 2. Xóa socketId khỏi Map Ngược

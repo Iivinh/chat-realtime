@@ -1,19 +1,30 @@
+//import thư viện và các thành phần cần thiết từ React
 import React, { useEffect, useState } from "react";
+//Import styled-components để tạo CSS-in-JS
 import styled from "styled-components";
+//Import axios để gọi API
 import axios from "axios";
+//Import loader.gif
 import loader from "../assets/loader.gif";
+//Import react-toastify
 import { ToastContainer, toast } from "react-toastify";
+//Import toastify css
 import "react-toastify/dist/ReactToastify.css";
+//Import useNavigate
 import { useNavigate } from "react-router-dom";
+//Import route API
 import { setAvatarRoute } from "../utils/APIRoutes";
+//Import multiavatar để tạo avatar ngẫu nhiên
 import multiavatar from "@multiavatar/multiavatar/esm";
 
+// Định nghĩa component SetAvatar
 export default function SetAvatar() {
+  // Sử dụng hook useNavigate để điều hướng trang
   const navigate = useNavigate();
   const [avatars, setAvatars] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [selectedAvatar, setSelectedAvatar] = useState(undefined);
-
+  // Cấu hình toastify
   const toastOptions = {
     position: "bottom-right",
     autoClose: 8000,
@@ -21,14 +32,14 @@ export default function SetAvatar() {
     draggable: true,
     theme: "dark",
   };
-
+  // Kiểm tra đăng nhập
   useEffect(() => {
     const user = localStorage.getItem(import.meta.env.VITE_LOCALHOST_KEY);
     if (!user) navigate("/login");
   }, [navigate]);
-
+  // Hàm tạo tên ngẫu nhiên cho avatar
   const generateRandomName = () => Math.random().toString(36).substring(2, 10);
-
+  // Tạo 4 avatar ngẫu nhiên khi component mount
   useEffect(() => {
     const generateAvatars = () => {
       const data = [];
@@ -44,21 +55,22 @@ export default function SetAvatar() {
 
     generateAvatars();
   }, []);
-
+  // Hàm đặt hình đại diện
   const setProfilePicture = async () => {
+    // Kiểm tra xem người dùng đã chọn avatar chưa
     if (selectedAvatar === undefined) {
       toast.error("Please select an avatar", toastOptions);
       return;
     }
-
+    // Lấy thông tin người dùng từ localStorage
     const user = await JSON.parse(
       localStorage.getItem(import.meta.env.VITE_LOCALHOST_KEY)
     );
-
+    // Gọi API để đặt avatar
     const { data } = await axios.post(`${setAvatarRoute}/${user._id}`, {
       image: avatars[selectedAvatar],
     });
-
+    // Xử lý phản hồi từ API
     if (data.isSet) {
       user.isAvatarImageSet = true;
       user.avatarImage = data.image;
