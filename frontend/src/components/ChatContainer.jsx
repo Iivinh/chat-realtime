@@ -184,12 +184,12 @@ export default function ChatContainer({ currentChat, socket, onMessageSent }) {
       }
 
       // Lưu tin nhắn vào database qua API
-      await axios.post(sendMessageRoute, {
-        from: data._id,
-        to: currentChat._id,
-        message: msg,
-      });
-      console.log("[SEND MSG] Saved to database");
+      // await axios.post(sendMessageRoute, {
+      //   from: data._id,
+      //   to: currentChat._id,
+      //   message: msg,
+      // });
+      // console.log("[SEND MSG] Saved to database");
 
       // Gọi callback nếu có
       if (onMessageSent) {

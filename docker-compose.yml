@@ -28,7 +28,7 @@ services:
   # Định nghĩa dịch vụ Database (MongoDB)
   database:
     # Tạo 1 container MongoDB với image mongo:5.0
-    image: mongo:latest
+    image: mongo:5.0
     # Kết nối mạng riêng cho các dịch vụ trong ứng dụng chat
     container_name: chat_mongodb
     # Mở cổng để truy cập MongoDB
@@ -49,7 +49,6 @@ services:
   # Tạo 1 container Backend với image được build từ thư mục ./backend
     build: ./backend
     # Kết nối mạng riêng cho các dịch vụ trong ứng dụng chat
-    container_name: chat_backend
     # chạy npm start thay vì CMD trong Dockerfile
     command: npm start
     # Kết nối mạng riêng cho các dịch vụ trong ứng dụng chat
@@ -80,7 +79,7 @@ services:
       - "5000:80"
     # Sử dụng file cấu hình Nginx tùy chỉnh
     volumes:
-      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/nginx.compose.conf:/etc/nginx/nginx.conf:ro
     # Đảm bảo Nginx khởi động sau Backend
     depends_on:
       - backend
@@ -94,7 +93,7 @@ services:
     container_name: chat_frontend
     # Mở cổng để truy cập Frontend
     ports:
-      - "3000:3000"
+      - "3000:80"
     # Đảm bảo Frontend khởi động sau Nginx
     depends_on:
       - nginx
@@ -105,5 +104,5 @@ services:
     restart: always
 # Định nghĩa mạng và volume cho ứng dụng
 volumes:
-  mongo_data:
+  mongo_data:  
   redis_data:
