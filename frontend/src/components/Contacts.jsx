@@ -1,16 +1,18 @@
+// Import các hooks cần thiết từ React
 import React, { useState, useEffect } from "react";
+// Import styled-components và keyframes để tạo animation
 import styled from "styled-components";
-import Logo from "../assets/logo.svg";
 
-// Import axios (nếu cần thiết cho việc lấy dữ liệu khác)
-
+// Component Contacts nhận props từ Chat.jsx
 export default function Contacts({ contacts, changeChat, handleSearch, isSearching, searchResults }) {
+  // State lưu thông tin người dùng hiện tại
   const [currentUserId, setCurrentUserId] = useState(undefined);
   const [currentUserName, setCurrentUserName] = useState(undefined);
   const [currentUserImage, setCurrentUserImage] = useState(undefined);
   const [currentSelected, setCurrentSelected] = useState(undefined);
   const [searchQuery, setSearchQuery] = useState("");
-  // Khắc phục lỗi: Tách logic async ra khỏi hàm chính của useEffect
+
+  // Lấy dữ liệu người dùng từ localStorage khi component mount
   useEffect(() => {
     const fetchUserData = async () => {
       // Đảm bảo dữ liệu được lấy ra
@@ -35,14 +37,16 @@ export default function Contacts({ contacts, changeChat, handleSearch, isSearchi
     };
 
     fetchUserData();
-  }, []); // ✅ Array trống là đúng, vì bạn chỉ cần chạy nó một lần khi mount
+  }, []); // Chạy một lần khi mount
 
+  // Xử lý thay đổi input tìm kiếm
   const handleInputChange = (e) => {
     const query = e.target.value;
     setSearchQuery(query);
     handleSearch(query); // Gọi hàm tìm kiếm trong Chat.jsx
   };
 
+  // Xử lý thay đổi cuộc trò chuyện hiện tại
   const changeCurrentChat = (index, contact) => {
     if (!isSearching) {
       setCurrentSelected(index);
@@ -51,6 +55,7 @@ export default function Contacts({ contacts, changeChat, handleSearch, isSearchi
     }
     changeChat(contact);
   };
+  // Chọn danh sách hiển thị dựa trên trạng thái tìm kiếm
   const displayList = isSearching ? searchResults : contacts;
   return (
     <>
@@ -64,8 +69,7 @@ export default function Contacts({ contacts, changeChat, handleSearch, isSearchi
       ) : (
         <Container>
           <div className="brand">
-            {/* <img src={Logo} alt="logo" /> */}
-            <h3>snappy</h3>
+            <h3>MESSAPP</h3>
           </div>
           <SearchContainer>
             <input

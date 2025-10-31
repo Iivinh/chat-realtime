@@ -1,18 +1,21 @@
+//import các thư viện cần thiết 
 import React, { useState, useEffect } from "react";
 import Logout from "./Logout";
 import styled from "styled-components";
-import Robot from "../assets/robot.gif";
 
+// Định nghĩa component Welcome
 export default function Welcome() {
   const [userName, setUserName] = useState("");
 
-  // Khắc phục lỗi: Tách logic bất đồng bộ vào hàm riêng
+  // Lấy tên người dùng từ localStorage khi component mount
   useEffect(() => {
+    // Hàm bất đồng bộ để fetch tên người dùng
     const fetchUserName = async () => {
+      // Đảm bảo dữ liệu được lấy ra
       const storedData = localStorage.getItem(
         import.meta.env.VITE_LOCALHOST_KEY
       );
-
+      
       if (storedData) {
         // BƯỚC 1: Parse dữ liệu
         const data = await JSON.parse(storedData);
@@ -33,7 +36,6 @@ export default function Welcome() {
       <LogoutButtonWrapper>
         <Logout />
       </LogoutButtonWrapper>
-      <img src={Robot} alt="" />
       <h2>
         Xin chào, <span>{userName || "Guest"}!</span> {/* Sử dụng || "Guest" để tránh hiển thị trống khi đang tải */}
       </h2>

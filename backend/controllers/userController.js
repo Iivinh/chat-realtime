@@ -2,15 +2,23 @@ const User = require('../models/userModel');
 const Message = require('../models/messageModel');
 const bcrypt = require("bcrypt");
 
+// Hàm đăng nhập
 const login = async (req, res, next) => {
   try {
+    // Lấy username và password từ request body
     const { username, password } = req.body;
     const user = await User.findOne({ username });
+
+    // Kiểm tra xem user tồn tại hay không
     if (!user)
       return res.json({ msg: "Sai Tên đăng nhập hoặc Mật khẩu.", status: false });
+
+    // Kiểm tra xem password có chính xác hay không
     const isPasswordValid = await bcrypt.compare(password, user.password);
     if (!isPasswordValid)
       return res.json({ msg: "Sai Tên đăng nhập hoặc Mật khẩu,", status: false });
+
+    // Xóa password trên response
     delete user.password;
     return res.json({ status: true, user });
   } catch (ex) {
@@ -18,21 +26,29 @@ const login = async (req, res, next) => {
   }
 };
 
+// Hàm đăng ký
 const register = async (req, res, next) => {
   try {
+    // Lấy username, email và password từ request body
     const { username, email, password } = req.body;
     const usernameCheck = await User.findOne({ username });
+
+    // Kiểm tra xem username và email có tồn tại trong database hay không
     if (usernameCheck)
       return res.json({ msg: "Tên đăng nhập đã tồn tại trong hệ thống.", status: false });
     const emailCheck = await User.findOne({ email });
     if (emailCheck)
       return res.json({ msg: "Địa chỉ Email đã tồn tại trong hệ thống.", status: false });
+
+    // Mã hóa mật khẩu và tạo user mới
     const hashedPassword = await bcrypt.hash(password, 10);
     const user = await User.create({
       email,
       username,
       password: hashedPassword,
     });
+
+    // Xóa password trên response
     delete user.password;
     return res.json({ status: true, user });
   } catch (ex) {
@@ -40,14 +56,13 @@ const register = async (req, res, next) => {
   }
 };
 
+// Hàm đăng xuất
 const logout = async (req, res, next) => {
   try {
+    // 1. Xóa trạng thái online (Logic cơ bản)
     if (!req.params.id) return res.json({ msg: "Yêu cầu id người dùng." });
     const redisClient = global.redisClient;
-    // onlineUsers.delete(req.params.id);
-    // ✅ THAY THẾ: Xóa trạng thái online khỏi Redis Hash Map chính
-    // Sau khi logout, User không còn online, nên không cần 
-    // phải lưu socketId -> userId nữa.
+  
     await redisClient.hdel('userSocketMap', req.params.id);
     // 2. Xóa Token/Cookie (Logic cơ bản)
     res.cookie("jwt", "", { maxAge: 1, httpOnly: true });
@@ -57,6 +72,7 @@ const logout = async (req, res, next) => {
   }
 };
 
+// Hàm lấy tất cả người dùng trừ chính mình
 const getAllUsers = async (req, res, next) => {
   try {
     const users = await User.find({ _id: { $ne: req.params.id } }).select([
@@ -71,6 +87,7 @@ const getAllUsers = async (req, res, next) => {
   }
 };
 
+// Hàm tìm kiếm người dùng theo username
 const searchUsers = async (req, res, next) => {
   try {
     const { username, userId } = req.query;
@@ -104,6 +121,7 @@ const searchUsers = async (req, res, next) => {
   }
 };
 
+// Hàm lấy danh sách người dùng đã từng trò chuyện cùng với tin nhắn cuối
 const getConversationalUsers = async (req, res, next) => {
   try {
     const currentUserId = req.params.id;
@@ -114,6 +132,7 @@ const getConversationalUsers = async (req, res, next) => {
       users: { $in: [currentUserId] },
     });
 
+    // Tìm tất cả user ID khác (Partner IDs)
     const conversationalUserIds = new Set();
     messages.forEach((msg) => {
       msg.users.forEach((userId) => {
@@ -141,7 +160,7 @@ const getConversationalUsers = async (req, res, next) => {
           users: { $all: [currentUserId, partnerId] },
         })
           .sort({ updatedAt: -1 })
-          .select("message sender updatedAt") // 🌟 ĐÃ TỐI GIẢN CHỈ LẤY CÁC TRƯỜNG CẦN THIẾT 🌟
+          .select("message sender updatedAt")
           .lean();
 
         if (!userDetails) return null;
@@ -174,8 +193,10 @@ const getConversationalUsers = async (req, res, next) => {
   }
 };
 
+// Hàm đặt avatar cho người dùng
 const setAvatar = async (req, res, next) => {
   try {
+    // Kiểm tra xem người dùng có quyền đặt avatar hay không
     const userId = req.params.id;
     const avatarImage = req.body.image;
     const userData = await User.findByIdAndUpdate(

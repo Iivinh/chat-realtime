@@ -1,63 +1,88 @@
+// Import các thư viện và hooks cần thiết từ React
 import React, { useState, useEffect, useRef } from "react";
+// Import styled-components để tạo CSS-in-JS
 import styled from "styled-components";
+// Import các component con
 import ChatInput from "./ChatInput";
 import Logout from "./Logout";
+// Import uuid để tạo ID duy nhất
 import { v4 as uuidv4 } from "uuid";
+// Import axios để gọi API
 import axios from "axios";
+// Import các route API từ file cấu hình
 import { sendMessageRoute, recieveMessageRoute } from "../utils/APIRoutes";
 
+
 export default function ChatContainer({ currentChat, socket, onMessageSent }) {
+   // State lưu trữ danh sách tin nhắn trong cuộc hội thoại hiện tại
   const [messages, setMessages] = useState([]);
+
+  // Ref dùng để scroll xuống tin nhắn mới nhất
   const scrollRef = useRef();
+
+   // State lưu trữ tin nhắn mới đến từ socket
   const [arrivalMessage, setArrivalMessage] = useState(null);
+
+  // Ref lưu trữ thông tin người đang chat hiện tại
   const currentChatRef = useRef(currentChat);
+
+  // Ref theo dõi component còn mounted hay không
   const isMountedRef = useRef(true);
 
-  // ✅ Update refs
+  // cập nhật các refs khi currentChat thay đổi
   useEffect(() => {
+    // Cập nhật ref với giá trị currentChat mới nhất
     currentChatRef.current = currentChat;
+    // Đánh dấu component đang được mount
     isMountedRef.current = true;
     
     return () => {
       isMountedRef.current = false;
     };
-  }, [currentChat]);
+  }, [currentChat]); // Chạy lại khi currentChat thay đổi
 
-  // ✅ Fetch messages when chat changes
+  // lấy tin nhắn từ database khi chuyển sang người chat khác
   useEffect(() => {
+    // Hàm lấy tin nhắn
     const fetchMessages = async () => {
+      // Lấy ID người chat hiện tại từ localStorage
       const storedData = localStorage.getItem(import.meta.env.VITE_LOCALHOST_KEY);
 
+      // Kiểm tra xem currentChat và storedData không null
       if (currentChat && storedData) {
         try {
+          // Dùng try...catch để xử lý lỗi parse nếu dữ liệu không phải JSON
           const data = JSON.parse(storedData);
-
+          // Gọi API để lấy tin nhắn giữa 2 người dùng
           const response = await axios.post(recieveMessageRoute, {
-            from: data._id,
+            from: data._id, 
             to: currentChat._id,
           });
-          
+          // Cập nhật state messages nếu component vẫn còn mounted
           if (isMountedRef.current) {
             setMessages(response.data);
           }
         } catch (error) {
           console.error("[FETCH MESSAGES] Error:", error);
           if (isMountedRef.current) {
+            // Cập nhật state messages nếu component vẫn còn mounted
             setMessages([]);
           }
         }
       }
     };
     
-    // ✅ Reset messages khi chuyển chat
+    // Reset messages khi chuyển chat
     setMessages([]);
+    // Reset arrivalMessage khi chuyển chat
     setArrivalMessage(null);
-    
+    // Gọi hàm fetchMessages
     fetchMessages();
   }, [currentChat]);
 
-  // ✅ SINGLE useEffect để lắng nghe tin nhắn mới
+  // Socket listener cho tin nhắn đến
   useEffect(() => {
+    // Kiểm tra socket với currentChat
     if (!socket.current || !currentChat) {
       console.log("[SOCKET LISTENER] Not ready - socket:", !!socket.current, "chat:", !!currentChat);
       return;
@@ -65,20 +90,22 @@ export default function ChatContainer({ currentChat, socket, onMessageSent }) {
 
     console.log("[SOCKET LISTENER] Setting up for chat:", currentChat.username);
 
+    // Hàm xử lý tin nhắn đến
     const handleMessage = (data) => {
+      // Log raw data
       console.log("[MSG-RECEIVE] Raw data:", data);
       console.log("[MSG-RECEIVE] Current chat:", currentChatRef.current?.username);
       
-      // ✅ Xử lý cả object và string
+      // Xử lý cả object và string
       const messageText = data.message || data.msg || (typeof data === 'string' ? data : '');
       const senderId = data.from;
       
       console.log("[MSG-RECEIVE] Message:", messageText, "From:", senderId);
       
-      // ✅ CHỈ NHẬN TIN NHẮN TỪ NGƯỜI ĐANG CHAT
+      // CHỈ NHẬN TIN NHẮN TỪ NGƯỜI ĐANG CHAT
       if (senderId && currentChatRef.current && senderId === currentChatRef.current._id) {
         console.log("[MSG-RECEIVE] ✅ Adding message to current chat");
-        
+        // Cập nhật state arrivalMessage nếu component vẫn còn mounted
         if (isMountedRef.current) {
           setArrivalMessage({ 
             fromSelf: false, 
@@ -102,6 +129,7 @@ export default function ChatContainer({ currentChat, socket, onMessageSent }) {
       console.log("[SOCKET] Connected");
     };
     
+    // Đăng ký tập socket listener
     socket.current.on("msg-recieve", handleMessage);
     socket.current.on("error", handleError);
     socket.current.on("disconnect", handleDisconnect);
@@ -118,8 +146,9 @@ export default function ChatContainer({ currentChat, socket, onMessageSent }) {
     };
   }, [socket, currentChat]);
 
-  // ✅ Append arrival message to messages list
+  // Xử lý khi có tin nhắn mới đến
   useEffect(() => {
+    // Cập nhật state messages nếu component vẫn còn mounted
     if (arrivalMessage && isMountedRef.current) {
       console.log("[ARRIVAL MESSAGE] Adding to list:", arrivalMessage.message);
       setMessages((prev) => [...prev, arrivalMessage]);
@@ -127,20 +156,22 @@ export default function ChatContainer({ currentChat, socket, onMessageSent }) {
     }
   }, [arrivalMessage]);
 
-  // ✅ Auto scroll to bottom
+  // Scroll xuống tin nhắn mới nhất khi messages thay đổi
   useEffect(() => {
     scrollRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
+  // Hàm gửi tin nhắn
   const handleSendMsg = async (msg) => {
     try {
+      // Lấy thông tin người dùng hiện tại
       const data = JSON.parse(
         localStorage.getItem(import.meta.env.VITE_LOCALHOST_KEY)
       );
       
       console.log("[SEND MSG] Sending to:", currentChat.username);
       
-      // ✅ Emit socket event
+      // Gửi tin nhắn qua socket
       if (socket.current && socket.current.connected) {
         socket.current.emit("send-msg", {
           to: currentChat._id,
@@ -151,21 +182,21 @@ export default function ChatContainer({ currentChat, socket, onMessageSent }) {
       } else {
         console.error("[SEND MSG] Socket not connected!");
       }
-      
-      // ✅ Save to database
-      await axios.post(sendMessageRoute, {
-        from: data._id,
-        to: currentChat._id,
-        message: msg,
-      });
-      console.log("[SEND MSG] Saved to database");
 
-      // ✅ Notify parent component
+      // Lưu tin nhắn vào database qua API
+      // await axios.post(sendMessageRoute, {
+      //   from: data._id,
+      //   to: currentChat._id,
+      //   message: msg,
+      // });
+      // console.log("[SEND MSG] Saved to database");
+
+      // Gọi callback nếu có
       if (onMessageSent) {
         onMessageSent();
       }
       
-      // ✅ Add message to local state
+      // Cập nhật state messages nếu component vẫn còn mounted
       if (isMountedRef.current) {
         setMessages((prev) => [...prev, { fromSelf: true, message: msg }]);
       }

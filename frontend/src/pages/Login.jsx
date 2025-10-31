@@ -1,16 +1,25 @@
+//import React from "react";
 import React, { useState, useEffect } from "react";
+//Import axios để gọi API
 import axios from "axios";
+//Import styled-components để tạo CSS-in-JS
 import styled from "styled-components";
+//Import useNavigate
 import { useNavigate, Link } from "react-router-dom";
+//Import react-toastify
 import Logo from "../assets/logo.svg";
+//Import toastify và css
 import { ToastContainer, toast } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 import { loginRoute } from "../utils/APIRoutes";
 import 'bootstrap/dist/css/bootstrap.min.css';
 
+// Định nghĩa component Login
 export default function Login() {
+  // Sử dụng hook useNavigate để điều hướng trang
   const navigate = useNavigate();
   const [values, setValues] = useState({ username: "", password: "" });
+  // Cấu hình toastify
   const toastOptions = {
     position: "bottom-right",
     autoClose: 8000,
@@ -18,18 +27,21 @@ export default function Login() {
     draggable: true,
     theme: "dark",
   };
+  // Kiểm tra nếu đã đăng nhập thì chuyển hướng về trang chính
   useEffect(() => {
     if (localStorage.getItem(import.meta.env.VITE_LOCALHOST_KEY)) {
       navigate("/");
     }
   }, []);
-
+  // Xử lý thay đổi input
   const handleChange = (event) => {
     setValues({ ...values, [event.target.name]: event.target.value });
   };
-
+  // Hàm xác thực form
   const validateForm = () => {
+    // Lấy giá trị từ state
     const { username, password } = values;
+    // Kiểm tra các điều kiện
     if (username === "") {
       toast.error("Vui lòng nhập Tên đăng nhập và Mật khẩu.", toastOptions);
       return false;
@@ -39,8 +51,9 @@ export default function Login() {
     }
     return true;
   };
-
+  // Xử lý khi submit form
   const handleSubmit = async (event) => {
+    // Ngăn người dùng gửi form
     event.preventDefault();
     if (validateForm()) {
       const { username, password } = values;
@@ -67,8 +80,7 @@ export default function Login() {
       <FormContainer>
         <form action="" onSubmit={(event) => handleSubmit(event)}>
           <div className="brand">
-            <img src={Logo} alt="logo" />
-            <h1>snappy</h1>
+            <h1>MESSSAPP</h1>
           </div>
           <input
             type="text"

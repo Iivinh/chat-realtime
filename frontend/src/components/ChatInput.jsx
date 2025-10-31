@@ -1,37 +1,34 @@
+// Import các hooks cần thiết từ React
 import React, { useEffect, useMemo, useRef, useState } from "react";
+// Import icon mặt cười và icon gửi từ react-icons
 import { BsEmojiSmileFill } from "react-icons/bs";
 import { IoMdSend } from "react-icons/io";
+// Import styled-components và keyframes để tạo animation
 import styled, { keyframes } from "styled-components";
-import Picker from "emoji-picker-react"; // v4+ onEmojiClick signature: (emojiData, event)
+// Import component emoji picker
+import Picker from "emoji-picker-react"; 
 
-/**
- * ChatInput — fixed & redesigned
- *
- * Improvements:
- * - Fixes emoji-picker onClick signature (v4+)
- * - Enter to send; Shift+Enter for newline
- * - Prevents empty/whitespace-only sends
- * - Click-outside to close emoji panel
- * - Accessible labels, aria, titles
- * - Mobile-friendly layout & larger touch targets
- * - Cleaner, modern visual style (glass + subtle glow)
- * - Optional props: placeholder, disabled, onTyping
- */
+
 export default function ChatInput({
-  handleSendMsg,
-  placeholder = "Nhập tin nhắn...",
-  disabled = false,
-  onTyping,
+  handleSendMsg,                          // Hàm callback khi gửi tin nhắn
+  placeholder = "Nhập tin nhắn...",       // Placeholder mặc định cho ô nhập
+  disabled = false,                       // Trạng thái disabled của input
+  onTyping,                               // Callback khi người dùng đang gõ
 }) {
+  // State lưu nội dung tin nhắn đang soạn
   const [msg, setMsg] = useState("");
+  // State điều khiển hiển thị/ẩn bảng emoji
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
+  // Ref tham chiếu đến container chính
   const containerRef = useRef(null);
+  // Ref tham chiếu đến textarea input
   const inputRef = useRef(null);
-
+  // Tính toán giá trị msg đã loại bỏ khoảng trắng thừa
   const trimmed = useMemo(() => msg.trim(), [msg]);
+  // Xác định xem có thể gửi tin nhắn hay không
   const canSend = trimmed.length > 0 && !disabled;
 
-  // Close picker when clicking outside
+  // Đóng bảng emoji khi click ra ngoài
   useEffect(() => {
     function onDocClick(e) {
       if (!showEmojiPicker) return;
@@ -43,20 +40,21 @@ export default function ChatInput({
     return () => document.removeEventListener("mousedown", onDocClick);
   }, [showEmojiPicker]);
 
-  // Notify parent that user is typing (optional)
+  // Gọi callback onTyping khi người dùng gõ
   useEffect(() => {
     if (!onTyping) return;
     const id = setTimeout(() => onTyping(Boolean(msg)), 150);
     return () => clearTimeout(id);
   }, [msg, onTyping]);
 
+  // Hàm xử lý toggle bảng emoji
   const handleEmojiToggle = () => setShowEmojiPicker((v) => !v);
-
+  // Hàm xử lý khi chọn emoji
   const handleEmojiClick = (emojiData /*, event */) => {
     setMsg((prev) => `${prev}${emojiData.emoji}`);
     inputRef.current?.focus();
   };
-
+  // Hàm gửi tin nhắn
   const sendChat = (e) => {
     e?.preventDefault?.();
     if (!canSend) return;
@@ -65,7 +63,7 @@ export default function ChatInput({
     setShowEmojiPicker(false);
     inputRef.current?.focus();
   };
-
+  // Hàm xử lý phím Enter để gửi tin nhắn
   const onKeyDown = (e) => {
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();

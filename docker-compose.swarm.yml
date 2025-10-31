@@ -1,120 +1,183 @@
+# Phiên bản Docker Compose file format
 version: '3.8'
 
+# Định nghĩa các dịch vụ trong stack
 services:
+  # Định nghĩa dịch vụ RabbitMQ
   rabbitmq:
+    # Tạo 1 container RabbitMQ với image rabbitmq:3-management-alpine
     image: rabbitmq:3-management-alpine
+    # Kết nối mạng riêng cho các dịch vụ trong ứng dụng chat
     networks:
       - chat_network
+    # Mở cổng để truy cập RabbitMQ và giao diện quản lý
     ports:
       - "5672:5672"
       - "15672:15672"
+    # Cấu hình cơ bản cho RabbitMQ
     environment:
-      RABBITMQ_DEFAULT_USER: user_rabbitmq
-      RABBITMQ_DEFAULT_PASS: password_rabbitmq_i7fK5ZEBUyr381F8
+      RABBITMQ_DEFAULT_USER: chatuser
+      RABBITMQ_DEFAULT_PASS: strong_password_123
+      RABBITMQ_DEFAULT_VHOST: /
+    # Cấu hình cơ bản cho RabbitMQ
     deploy:
+      # Chỉ chạy 1 replica (instance) của RabbitMQ
       replicas: 1
+      # Chính sách restart khi container bị lỗi
       restart_policy:
         condition: on-failure
 
+  # Định nghĩa dịch vụ Redis
   redis:
+    # Tạo 1 container Redis với image redis:alpine
     image: redis:alpine
+    # Kết nối mạng riêng cho các dịch vụ trong ứng dụng chat
     networks:
       - chat_network
+    # Mở cổng để truy cập Redis
     ports:
       - "6379:6379"
+    # Sử dụng volume để lưu trữ dữ liệu Redis
     volumes:
       - redis_data:/data
+    # Cấu hình triển khai cho dịch vụ Redis
     deploy:
+      # Chỉ chạy 1 replica (instance) của Redis
       replicas: 1
+      # Chính sách restart khi container bị lỗi
       restart_policy:
         condition: on-failure
-
+  # Định nghĩa dịch vụ Database (MongoDB)
   database:
+    # Tạo 1 container MongoDB với image mongo:5.0
     image: mongo:5.0
+    # Kết nối mạng riêng cho các dịch vụ trong ứng dụng chat
     networks:
       - chat_network
+    # Mở cổng để truy cập MongoDB
     ports:
       - "27017:27017"
+    # Sử dụng volume để lưu trữ dữ liệu MongoDB
     volumes:
       - mongo_data:/data/db
+    # Cấu hình môi trường cho MongoDB
     environment:
       MONGO_INITDB_ROOT_USERNAME: chatuser
       MONGO_INITDB_ROOT_PASSWORD: chatpassword
+    # Cấu hình triển khai cho dịch vụ Database
     deploy:
+      # Chỉ chạy 1 replica (instance) của Database
       replicas: 1
+      # Chính sách restart khi container bị lỗi
       restart_policy:
         condition: on-failure
         delay: 5s
         max_attempts: 3
+      # Đảm bảo dịch vụ chỉ chạy trên các node manager
       placement:
         constraints:
           - node.role == manager
 
+  # Định nghĩa dịch vụ Backend
   backend:
+    # Tạo 1 container Backend với image chat-backend:latest
     image: chat-backend:latest
+    # Kết nối mạng riêng cho các dịch vụ trong ứng dụng chat
     networks:
       - chat_network
+    # Mở cổng để truy cập Backend
     environment:
       MONGO_URI: "mongodb://chatuser:chatpassword@database:27017/chat_db?authSource=admin"
       PORT: 5000
-      RABBITMQ_URL: "amqp://rabbitmq:5672"
+      # RABBITMQ_URL: "amqp://rabbitmq:5672"
+      RABBITMQ_URL: "amqp://chatuser:strong_password_123@rabbitmq:5672/"
       REDIS_URL: "redis://redis:6379"
+    # Cấu hình triển khai cho dịch vụ Backend
     depends_on:
       - database
       - rabbitmq
       - redis
+    # Cấu hình triển khai cho dịch vụ Backend
     deploy:
+      # Chạy 3 replicas (instances) của Backend để xử lý tải
       replicas: 3
+      # Chính sách restart khi container bị lỗi
       restart_policy:
         condition: on-failure
+      # Cấu hình cập nhật dịch vụ
       update_config:
         parallelism: 1
         delay: 10s
+      # Giới hạn tài nguyên cho mỗi replica
       resources:
         limits:
           cpus: '0.5'
           memory: 512M
 
+  # Định nghĩa dịch vụ Nginx
   nginx:
+    # Tạo 1 container Nginx với image nginx:latest
     image: nginx:latest
+    # Kết nối mạng riêng cho các dịch vụ trong ứng dụng chat
     networks:
       - chat_network
+    # Mở cổng để truy cập Nginx
     ports:
       - "5000:80"
+    # Gắn file cấu hình Nginx từ host vào container
     volumes:
       - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+    # Cấu hình triển khai cho dịch vụ Nginx
     depends_on:
       - backend
+    # Cấu hình triển khai cho dịch vụ Nginx
     deploy:
+      # Chỉ chạy 1 replica (instance) của Nginx
       replicas: 1
+      # Chính sách restart khi container bị lỗi
       restart_policy:
         condition: on-failure
 
+  # Định nghĩa dịch vụ Frontend
   frontend:
+    # Tạo 1 container Frontend với image chat-frontend:latest
     image: chat-frontend:latest
+    # Kết nối mạng riêng cho các dịch vụ trong ứng dụng chat
     networks:
       - chat_network
+    # Mở cổng để truy cập Frontend
     ports:
-      - "3000:80"  # ✅ QUAN TRỌNG: 80 vì Nginx trong container
+      - "3000:80" 
+    # Đảm bảo Frontend khởi động sau Nginx
     depends_on:
       - nginx
+    # Cấu hình triển khai cho dịch vụ Frontend
     environment:
       VITE_API_URL: http://localhost:5000
+    # Cấu hình triển khai cho dịch vụ Frontend
     deploy:
+      # Chạy 2 replicas (instances) của Frontend để xử lý tải
       replicas: 2
+      # Chính sách restart khi container bị lỗi
       restart_policy:
         condition: on-failure
+      # Cấu hình cập nhật dịch vụ
       update_config:
         parallelism: 1
         delay: 10s
 
+# Định nghĩa mạng và volume cho ứng dụng
 networks:
+  # Định nghĩa mạng riêng cho các dịch vụ trong ứng dụng chat
   chat_network:
     driver: overlay
     attachable: true
 
+# Định nghĩa các volume để lưu trữ dữ liệu
 volumes:
-  mongo_data:  # ✅ Khai báo volume
+  # Định nghĩa volume riêng cho dịch vụ Database
+  mongo_data:  
     driver: local
-  redis_data:  # ✅ Khai báo volume cho Redis
+  # Định nghĩa volume riêng cho dịch vụ Redis
+  redis_data:
     driver: local
