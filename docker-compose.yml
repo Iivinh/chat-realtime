@@ -34,13 +34,13 @@ services:
       PORT: 5000
       RABBITMQ_URL: "amqp://rabbitmq:5672"
       REDIS_URL : "redis://redis:6379"
-    depends_on:
-      - database
-      - rabbitmq
-      - redis
-    restart: always
     deploy:
       replicas: 2
+    depends_on:
+      - database
+      - redis
+      - rabbitmq
+    restart: always
 
   nginx:
     image: nginx:latest
@@ -62,7 +62,6 @@ services:
       - nginx
     environment:
       VITE_API_URL: http://localhost:5000
-      # VITE_API_URL: http://host.docker.internal:5000
     restart: always
 
 volumes:
